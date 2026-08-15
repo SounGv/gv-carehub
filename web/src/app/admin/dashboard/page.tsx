@@ -144,8 +144,8 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {legacy.isLoading && !legacy.data && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-20 rounded-xl" />
                   ))}
                 </div>
@@ -153,12 +153,14 @@ export default function AdminDashboardPage() {
               {legacy.error && !legacy.data && <ErrorState message={legacy.error} onRetry={legacy.refetch} />}
               {legacy.data && (
                 <>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                     <KpiCard label="เคสสะสม (บริการหลังการขาย)" value={legacy.data.service_log.total_cases} icon={ClipboardList} />
                     <KpiCard label="รายการ CLSBS สะสม" value={legacy.data.clsbs.total_records} icon={Boxes} />
                     <KpiCard label="จ่ายให้ผู้จำหน่าย" value={legacy.data.clsbs.money.paid_to_vendor} icon={HandCoins} isCurrency tone="warning" />
                     <KpiCard label="ได้รับจากผู้จำหน่าย" value={legacy.data.clsbs.money.received_from_vendor} icon={Landmark} isCurrency tone="good" />
                     <KpiCard label="เรียกเก็บจากลูกค้า" value={legacy.data.clsbs.money.charged_to_customer} icon={Wallet} isCurrency />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                     <KpiCard label="คืนให้ลูกค้า" value={legacy.data.clsbs.money.refunded_to_customer} icon={Coins} isCurrency tone="warning" />
                   </div>
                   <div>
