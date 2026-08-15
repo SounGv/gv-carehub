@@ -207,6 +207,40 @@ export interface SearchResponse {
   claims: StaffClaim[];
 }
 
+export type LegacyCountRow = { label: string; count: number };
+
+export type LegacyMonthRow = { month: string; count: number };
+
+/** Aggregates from the pre-existing "บริการหลังการขาย" sheet — data entry log, no workflow status. */
+export interface LegacyServiceLogStats {
+  total_cases: number;
+  by_channel: LegacyCountRow[];
+  by_issue_group: LegacyCountRow[];
+  top_products: LegacyCountRow[];
+  by_month: LegacyMonthRow[];
+}
+
+/** Aggregates from the pre-existing "CLSBS" sheet — products already received/repaired via vendors. */
+export interface LegacyClsbsStats {
+  total_records: number;
+  top_symptoms: LegacyCountRow[];
+  by_brand: LegacyCountRow[];
+  by_product_group: LegacyCountRow[];
+  money: {
+    paid_to_vendor: number;
+    received_from_vendor: number;
+    charged_to_customer: number;
+    refunded_to_customer: number;
+  };
+}
+
+export interface LegacyReportResponse {
+  ok: true;
+  generated_at: string;
+  service_log: LegacyServiceLogStats;
+  clsbs: LegacyClsbsStats;
+}
+
 export interface CreateClaimResult {
   ok: true;
   claim_no: string;

@@ -12,6 +12,7 @@ import type {
   CreateClaimPayload,
   CreateClaimResult,
   DashboardResponse,
+  LegacyReportResponse,
   MetaResponse,
   ReportResponse,
   SearchResponse,
@@ -107,6 +108,8 @@ export const gvApi = {
   report: (filters: ReportFilters) => apiGet<ReportResponse>('report', filters as Record<string, string | undefined>),
 
   dashboard: (filters: DashboardFilters) => apiGet<DashboardResponse>('dashboard', filters as Record<string, string | undefined>),
+
+  legacyReport: () => apiGet<LegacyReportResponse>('legacy_report'),
 
   claimDetail: (claimNo: string) => apiGet<ClaimDetailResponse>('claim_detail', { claim_no: claimNo }),
 

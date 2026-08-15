@@ -42,6 +42,27 @@ export function DailyClaimsChart({ data }: { data: { date: string; count: number
   );
 }
 
+export function MonthlyTrendChart({ data }: { data: { month: string; count: number }[] }) {
+  if (!data.length) return <EmptyState title="ไม่มีข้อมูลย้อนหลัง" />;
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <AreaChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+        <defs>
+          <linearGradient id="monthlyTrendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={CHART_BLUE} stopOpacity={0.28} />
+            <stop offset="100%" stopColor={CHART_BLUE} stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+        <XAxis dataKey="month" tick={AXIS_TEXT} axisLine={{ stroke: GRID }} tickLine={false} minTickGap={16} />
+        <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} allowDecimals={false} width={40} />
+        <Tooltip content={<ChartTooltip valueLabel="เคส" />} />
+        <Area type="monotone" dataKey="count" stroke={CHART_BLUE} strokeWidth={2} fill="url(#monthlyTrendFill)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function StatusWorkflowChart({ data }: { data: Record<string, number> }) {
   const rows = CLAIM_STATUSES.map((status, i) => ({ status, count: data[status] || 0, color: STATUS_SEQUENTIAL_RAMP[i] ?? CHART_BLUE }));
   const hasData = rows.some((r) => r.count > 0);

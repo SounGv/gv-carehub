@@ -80,6 +80,7 @@ function doGet(e) {
     else if (action === 'dashboard') result = dashboardReport_(p);
     else if (action === 'meta') result = metaLists_();
     else if (action === 'claim_detail') result = claimDetail_(p.claim_no || '');
+    else if (action === 'legacy_report') result = legacyReport_();
     else throw new Error('Unknown action: ' + action);
     return json_(result);
   } catch (err) {
@@ -562,6 +563,137 @@ function dashboardReport_(p) {
       top_issues: Object.keys(issueCounts).map(function(k) { return { issue: k, count: issueCounts[k] }; }).sort(function(a, b) { return b.count - a.count; }).slice(0, 10),
       damage_by_brand: Object.keys(damageByBrand).map(function(k) { return { brand: k, value: Number(damageByBrand[k].toFixed(2)) }; }).sort(function(a, b) { return b.value - a.value; }),
       defect_rate_vs_sales: salesTotal > 0 ? Number((claimedQty / salesTotal * 100).toFixed(2)) : null
+    }
+  };
+}
+
+/* ---------------- Legacy report (บริการหลังการขาย + CLSBS sheets) ----------------
+ * These are the pre-existing operational sheets (not part of the Base 10
+ * schema above) that already hold years of real claim/repair records. They
+ * have no workflow "status" column to speak of, so this only aggregates
+ * counts/values — no open/closed breakdown. Read live off the sheets (no
+ * import), cached briefly so a busy dashboard doesn't re-scan tens of
+ * thousands of rows on every request.
+ */
+
+const LEGACY_SERVICE_LOG_SHEET = 'บริการหลังการขาย';
+const LEGACY_CLSBS_SHEET = 'CLSBS';
+const LEGACY_CACHE_KEY = 'legacy_report_v1';
+const LEGACY_CACHE_SECONDS = 180;
+
+function legacyReport_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(LEGACY_CACHE_KEY);
+  if (cached) return JSON.parse(cached);
+
+  const result = {
+    ok: true,
+    generated_at: new Date().toISOString(),
+    service_log: legacyServiceLogStats_(),
+    clsbs: legacyClsbsStats_()
+  };
+  try {
+    cache.put(LEGACY_CACHE_KEY, JSON.stringify(result), LEGACY_CACHE_SECONDS);
+  } catch (e) {
+    // Aggregate is normally well under the 100KB cache value limit; if it
+    // ever isn't, just skip caching rather than fail the request.
+  }
+  return result;
+}
+
+/**
+ * Reads several named columns from a sheet in a single Range read (one
+ * header lookup + one data block spanning the min..max column needed)
+ * instead of one round-trip per column — the row counts here run into the
+ * tens of thousands, so cutting round-trips is what keeps this fast.
+ */
+function legacySheetColumns_(sheetName, headerNames) {
+  const empty = function() { return headerNames.reduce(function(o, h) { o[h] = []; return o; }, {}); };
+  const sh = spreadsheet_().getSheetByName(sheetName);
+  if (!sh) return empty();
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return empty();
+  const header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const indices = headerNames.map(function(h) { return header.indexOf(h); });
+  const validIndices = indices.filter(function(i) { return i >= 0; });
+  if (!validIndices.length) return empty();
+  const minCol = Math.min.apply(null, validIndices);
+  const maxCol = Math.max.apply(null, validIndices);
+  const block = sh.getRange(2, minCol + 1, lastRow - 1, maxCol - minCol + 1).getValues();
+  const out = {};
+  headerNames.forEach(function(h, hi) {
+    const idx = indices[hi];
+    if (idx < 0) { out[h] = []; return; }
+    const offset = idx - minCol;
+    out[h] = block.map(function(row) { return row[offset]; });
+  });
+  return out;
+}
+
+function legacyTopCounts_(values, limit) {
+  const counts = {};
+  values.forEach(function(v) {
+    const key = String(v || '').trim() || 'ไม่ระบุ';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.keys(counts)
+    .map(function(k) { return { label: k, count: counts[k] }; })
+    .sort(function(a, b) { return b.count - a.count; })
+    .slice(0, limit || 10);
+}
+
+function legacyNumber_(v) {
+  if (typeof v === 'number') return v;
+  const n = Number(String(v || '').replace(/,/g, '').trim());
+  return isNaN(n) ? 0 : n;
+}
+
+function legacySum_(values) {
+  return Number(values.reduce(function(s, v) { return s + legacyNumber_(v); }, 0).toFixed(2));
+}
+
+function legacyServiceLogStats_() {
+  const issueGroupHeader = 'กลุ่มของปัญหา (เคลม, แจ้งปัญหาสินค้าการใช้งาน, รีวิว, เปลี่ยนคินสินค้า)';
+  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, ['วันที่', 'ร้าน', 'สินค้า', issueGroupHeader]);
+  const dates = cols['วันที่'];
+  const channels = cols['ร้าน'];
+  const products = cols['สินค้า'];
+  const issueGroups = cols[issueGroupHeader];
+
+  const byMonth = {};
+  dates.forEach(function(d) {
+    const key = dateKey_(d).slice(0, 7); // yyyy-MM
+    if (key) byMonth[key] = (byMonth[key] || 0) + 1;
+  });
+
+  return {
+    total_cases: dates.length,
+    by_channel: legacyTopCounts_(channels, 10),
+    by_issue_group: legacyTopCounts_(issueGroups, 10),
+    top_products: legacyTopCounts_(products, 15),
+    by_month: Object.keys(byMonth).sort().map(function(m) { return { month: m, count: byMonth[m] }; })
+  };
+}
+
+function legacyClsbsStats_() {
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    'อาการเสีย', 'ยี่ห้อสินค้าที่รับเคลม', 'กลุ่มสินค้าที่รับเคลม',
+    'เงินที่ชำระให้ผู้จำหน่าย', 'เงินที่ได้รับจากผู้จำหน่าย',
+    'เงินที่เรียกเก็บจากลูกค้า', 'เงินที่คืนให้ลูกค้า'
+  ]);
+  const symptoms = cols['อาการเสีย'];
+
+  return {
+    total_records: symptoms.length,
+    top_symptoms: legacyTopCounts_(symptoms, 15),
+    by_brand: legacyTopCounts_(cols['ยี่ห้อสินค้าที่รับเคลม'], 10),
+    by_product_group: legacyTopCounts_(cols['กลุ่มสินค้าที่รับเคลม'], 10),
+    money: {
+      paid_to_vendor: legacySum_(cols['เงินที่ชำระให้ผู้จำหน่าย']),
+      received_from_vendor: legacySum_(cols['เงินที่ได้รับจากผู้จำหน่าย']),
+      charged_to_customer: legacySum_(cols['เงินที่เรียกเก็บจากลูกค้า']),
+      refunded_to_customer: legacySum_(cols['เงินที่คืนให้ลูกค้า'])
     }
   };
 }

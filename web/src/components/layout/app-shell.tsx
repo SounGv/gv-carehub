@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileBarChart, PackageSearch, Truck, Menu, X, Pencil } from 'lucide-react';
+import { toast } from 'sonner';
+import { LayoutDashboard, FileBarChart, PackageSearch, PackageX, Truck, Menu, X, Pencil, Check, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
 
@@ -14,22 +15,84 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
-  {
-    title: 'ภาพรวม',
-    items: [
-      { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/admin/reports', label: 'รายงาน SKU', icon: FileBarChart },
-    ],
-  },
-  {
-    title: 'คลังสินค้า',
-    items: [
-      { href: '/staff/receive', label: 'รับพัสดุ / สแกน', icon: PackageSearch },
-      { href: '/staff/ship', label: 'ยืนยันจัดส่งคืน', icon: Truck },
-    ],
-  },
-];
+const OVERVIEW_GROUP: { title: string; items: NavItem[] } = {
+  title: 'ภาพรวม',
+  items: [
+    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/admin/reports', label: 'รายงาน SKU', icon: FileBarChart },
+    { href: '/admin/clsbs', label: 'CLSBS', icon: PackageX },
+  ],
+};
+
+const WAREHOUSE_GROUP: { title: string; items: NavItem[] } = {
+  title: 'คลังสินค้า',
+  items: [
+    { href: '/staff/receive', label: 'รับพัสดุ / สแกน', icon: PackageSearch },
+    { href: '/staff/ship', label: 'ยืนยันจัดส่งคืน', icon: Truck },
+  ],
+};
+
+function CopyClaimLinkButton() {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    const url = `${window.location.origin}/claim/new`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('คัดลอกลิงก์แจ้งเคลมแล้ว ส่งให้ลูกค้าทางแชทได้เลย');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('คัดลอกลิงก์ไม่สำเร็จ');
+    }
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10"
+    >
+      {copied ? <Check className="h-4 w-4 flex-none text-brand-lime" /> : <Link2 className="h-4 w-4 flex-none" />}
+      คัดลอกลิงก์แจ้งเคลม
+    </button>
+  );
+}
+
+function NavGroup({
+  group,
+  pathname,
+  onNavigate,
+}: {
+  group: { title: string; items: NavItem[] };
+  pathname: string | null;
+  onNavigate: () => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">{group.title}</div>
+      <div className="flex flex-col gap-1">
+        {group.items.map((item) => {
+          const active = pathname?.startsWith(item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                active ? 'bg-brand-lime text-brand-charcoal' : 'text-white/80 hover:bg-white/10',
+              )}
+            >
+              <Icon className="h-4 w-4 flex-none" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -69,31 +132,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-6">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.title}>
-              <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">{group.title}</div>
-              <div className="flex flex-col gap-1">
-                {group.items.map((item) => {
-                  const active = pathname?.startsWith(item.href);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        'flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                        active ? 'bg-brand-lime text-brand-charcoal' : 'text-white/80 hover:bg-white/10',
-                      )}
-                    >
-                      <Icon className="h-4 w-4 flex-none" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
+          <NavGroup group={OVERVIEW_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
+
+          <div>
+            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">ลูกค้า</div>
+            <div className="flex flex-col gap-1">
+              <CopyClaimLinkButton />
             </div>
-          ))}
+          </div>
+
+          <NavGroup group={WAREHOUSE_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
         </nav>
 
         <div className="mt-auto space-y-1.5 border-t border-white/10 pt-4">
