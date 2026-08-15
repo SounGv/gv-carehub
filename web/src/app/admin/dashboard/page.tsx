@@ -42,7 +42,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-brand-charcoal">Dashboard ผู้บริหาร</h1>
+        <h1 className="text-xl font-bold text-brand-charcoal">Dashboard</h1>
         <p className="text-sm text-slate-500">ภาพรวมเคลมและความเสียหายจากข้อมูลจริงใน Google Sheets</p>
       </div>
 

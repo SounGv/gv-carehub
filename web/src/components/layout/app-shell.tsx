@@ -4,45 +4,38 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileBarChart, PackageSearch, Truck, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileBarChart, PackageSearch, Truck, Menu, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
-import { ROLE_LABELS } from '@/lib/constants';
-import type { UserRole } from '@/lib/types';
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  allow: UserRole[];
 }
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
-    title: 'ผู้บริหาร',
+    title: 'ภาพรวม',
     items: [
-      { href: '/admin/dashboard', label: 'Dashboard ผู้บริหาร', icon: LayoutDashboard, allow: ['admin', 'manager'] },
-      { href: '/admin/reports', label: 'รายงาน SKU', icon: FileBarChart, allow: ['admin', 'manager'] },
+      { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/admin/reports', label: 'รายงาน SKU', icon: FileBarChart },
     ],
   },
   {
-    title: 'พนักงาน',
+    title: 'คลังสินค้า',
     items: [
-      { href: '/staff/receive', label: 'รับพัสดุ / สแกน', icon: PackageSearch, allow: ['staff', 'manager', 'admin'] },
-      { href: '/staff/ship', label: 'ยืนยันจัดส่งคืน', icon: Truck, allow: ['staff', 'manager', 'admin'] },
+      { href: '/staff/receive', label: 'รับพัสดุ / สแกน', icon: PackageSearch },
+      { href: '/staff/ship', label: 'ยืนยันจัดส่งคืน', icon: Truck },
     ],
   },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { session, logout } = useAuth();
+  const { session, rename } = useAuth();
   const [open, setOpen] = useState(false);
-  const role = session?.role;
-
-  const visibleGroups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => (role ? i.allow.includes(role) : false)) })).filter(
-    (g) => g.items.length > 0,
-  );
+  const [editingName, setEditingName] = useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -76,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-6">
-          {visibleGroups.map((group) => (
+          {NAV_GROUPS.map((group) => (
             <div key={group.title}>
               <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">{group.title}</div>
               <div className="flex flex-col gap-1">
@@ -103,15 +96,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {session && (
-          <div className="mt-auto space-y-2 border-t border-white/10 pt-4">
-            <div className="text-sm font-medium">{session.name}</div>
-            <div className="text-xs text-white/50">{ROLE_LABELS[session.role]}</div>
-            <button onClick={logout} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white">
-              <LogOut className="h-3.5 w-3.5" /> ออกจากระบบ
+        <div className="mt-auto space-y-1.5 border-t border-white/10 pt-4">
+          {editingName ? (
+            <input
+              autoFocus
+              defaultValue={session.name}
+              onBlur={(e) => {
+                rename(e.target.value);
+                setEditingName(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+              className="w-full rounded-md border border-white/20 bg-white/10 px-2 py-1 text-sm text-white outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => setEditingName(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-white hover:text-brand-lime"
+            >
+              <Pencil className="h-3 w-3 flex-none text-white/50" /> {session.name}
             </button>
-          </div>
-        )}
+          )}
+          <div className="text-xs text-white/40">ชื่อนี้จะบันทึกในประวัติการดำเนินการ</div>
+        </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto">

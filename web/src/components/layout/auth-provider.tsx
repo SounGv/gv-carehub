@@ -1,39 +1,37 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { UserRole } from '@/lib/types';
-import { type AuthSession, clearStoredSession, getStoredSession, setStoredSession } from '@/lib/auth';
+import { DEFAULT_ACTOR_NAME, type AuthSession, getStoredSession, setStoredSession } from '@/lib/auth';
 
 interface AuthContextValue {
-  session: AuthSession | null;
+  session: AuthSession;
   isLoading: boolean;
-  login: (name: string, role: UserRole) => void;
-  logout: () => void;
+  rename: (name: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [session, setSession] = useState<AuthSession>({ name: DEFAULT_ACTOR_NAME });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setSession(getStoredSession());
+    const stored = getStoredSession();
+    if (stored) {
+      setSession(stored);
+    } else {
+      setStoredSession({ name: DEFAULT_ACTOR_NAME });
+    }
     setIsLoading(false);
   }, []);
 
-  const login = useCallback((name: string, role: UserRole) => {
-    const next: AuthSession = { userId: name.trim().toLowerCase().replace(/\s+/g, '-'), name: name.trim(), role };
+  const rename = useCallback((name: string) => {
+    const next: AuthSession = { name: name.trim() || DEFAULT_ACTOR_NAME };
     setStoredSession(next);
     setSession(next);
   }, []);
 
-  const logout = useCallback(() => {
-    clearStoredSession();
-    setSession(null);
-  }, []);
-
-  const value = useMemo(() => ({ session, isLoading, login, logout }), [session, isLoading, login, logout]);
+  const value = useMemo(() => ({ session, isLoading, rename }), [session, isLoading, rename]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

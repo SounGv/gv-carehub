@@ -4,8 +4,6 @@
  * the Apps Script API responses in apps-script/Code.gs.
  */
 
-export type UserRole = 'customer' | 'staff' | 'manager' | 'admin';
-
 export const CLAIM_STATUSES = [
   'แจ้งเคลมแล้ว',
   'รอรับสินค้า',

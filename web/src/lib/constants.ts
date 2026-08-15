@@ -1,5 +1,3 @@
-import type { UserRole } from './types';
-
 export const BRAND = {
   lime: '#C4D600',
   charcoal: '#221E1A',
@@ -42,10 +40,3 @@ export const CHART_STATUS = {
 };
 /** Sequential ramp (light -> dark) for the ordered claim-status workflow chart. */
 export const STATUS_SEQUENTIAL_RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#1c5cab', '#104281', '#0d366b', '#082b57'];
-
-export const ROLE_LABELS: Record<UserRole, string> = {
-  customer: 'ลูกค้า',
-  staff: 'พนักงาน',
-  manager: 'ผู้จัดการ',
-  admin: 'ผู้บริหาร',
-};
