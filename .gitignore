@@ -1,0 +1,14 @@
+# Next.js frontend
+web/node_modules
+web/.next
+web/out
+web/coverage
+web/.env
+web/.env.local
+web/.env.*.local
+web/*.tsbuildinfo
+web/next-env.d.ts
+
+# OS / editor junk
+.DS_Store
+Thumbs.db

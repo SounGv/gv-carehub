@@ -1,0 +1,209 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { format, subDays } from 'date-fns';
+import {
+  AlertOctagon,
+  CheckCircle2,
+  ClipboardList,
+  Coins,
+  PackageCheck,
+  PackageSearch,
+  Truck,
+  Wallet,
+  Wrench,
+} from 'lucide-react';
+import { gvApi, type DashboardFilters } from '@/lib/api';
+import { useAsync } from '@/hooks/use-async';
+import { useMeta } from '@/hooks/use-meta';
+import { KpiCard } from '@/components/dashboard/kpi-card';
+import { DailyClaimsChart, RankedBarChart, StatusWorkflowChart } from '@/components/dashboard/charts';
+import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
+import { Select } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
+import { formatCurrency, formatPercent } from '@/lib/formatters';
+
+const today = () => format(new Date(), 'yyyy-MM-dd');
+const defaultFrom = () => format(subDays(new Date(), 29), 'yyyy-MM-dd');
+
+export default function AdminDashboardPage() {
+  const [filters, setFilters] = useState<DashboardFilters>({ from: defaultFrom(), to: today(), sku: '', status: '', channel: '' });
+  const meta = useMeta();
+  const dashboard = useAsync(() => gvApi.dashboard(filters), [filters.from, filters.to, filters.sku, filters.status, filters.channel]);
+
+  const topSkuRows = useMemo(
+    () => (dashboard.data?.charts.top_skus_damage ?? []).map((r) => ({ ...r, label: r.product_name ? `${r.sku} · ${r.product_name}` : r.sku })),
+    [dashboard.data],
+  );
+  const topIssueRows = useMemo(() => dashboard.data?.charts.top_issues ?? [], [dashboard.data]);
+  const brandRows = useMemo(() => dashboard.data?.charts.damage_by_brand ?? [], [dashboard.data]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-brand-charcoal">Dashboard ผู้บริหาร</h1>
+        <p className="text-sm text-slate-500">ภาพรวมเคลมและความเสียหายจากข้อมูลจริงใน Google Sheets</p>
+      </div>
+
+      <FilterBar>
+        <FilterField label="วันที่เริ่มต้น">
+          <input
+            type="date"
+            className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
+            value={filters.from}
+            max={filters.to}
+            onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))}
+          />
+        </FilterField>
+        <FilterField label="วันที่สิ้นสุด">
+          <input
+            type="date"
+            className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
+            value={filters.to}
+            min={filters.from}
+            onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}
+          />
+        </FilterField>
+        <FilterField label="SKU">
+          <Select value={filters.sku} onChange={(e) => setFilters((f) => ({ ...f, sku: e.target.value }))}>
+            <option value="">ทั้งหมด</option>
+            {(meta.data?.skus ?? []).map((sku) => (
+              <option key={sku} value={sku}>
+                {sku}
+              </option>
+            ))}
+          </Select>
+        </FilterField>
+        <FilterField label="สถานะ">
+          <Select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+            <option value="">ทั้งหมด</option>
+            {(meta.data?.statuses ?? []).map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+        </FilterField>
+        <FilterField label="ช่องทางการขาย">
+          <Select value={filters.channel} onChange={(e) => setFilters((f) => ({ ...f, channel: e.target.value }))}>
+            <option value="">ทั้งหมด</option>
+            {(meta.data?.channels ?? []).map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </FilterField>
+        <RefreshButton onClick={dashboard.refetch} isLoading={dashboard.isLoading} lastUpdatedAt={dashboard.lastUpdatedAt} />
+      </FilterBar>
+
+      {dashboard.isLoading && !dashboard.data && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+      )}
+
+      {dashboard.error && !dashboard.data && <ErrorState message={dashboard.error} onRetry={dashboard.refetch} />}
+
+      {dashboard.data && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <KpiCard label="เคลมวันนี้" value={dashboard.data.kpi.claims_today} icon={ClipboardList} />
+            <KpiCard label="รอรับสินค้า" value={dashboard.data.kpi.waiting_receive} icon={PackageSearch} tone="warning" />
+            <KpiCard label="รับเข้าคลังแล้ว" value={dashboard.data.kpi.received} icon={PackageCheck} />
+            <KpiCard label="กำลังดำเนินการ" value={dashboard.data.kpi.in_progress} icon={Wrench} />
+            <KpiCard label="รอจัดส่งคืน" value={dashboard.data.kpi.waiting_ship} icon={Truck} />
+            <KpiCard label="จัดส่งแล้ว" value={dashboard.data.kpi.shipped} icon={Truck} tone="good" />
+            <KpiCard label="ปิดเคส" value={dashboard.data.kpi.closed} icon={CheckCircle2} tone="good" />
+            <KpiCard label="เคสเกิน SLA" value={dashboard.data.kpi.overdue_sla} icon={AlertOctagon} tone="critical" />
+            <KpiCard label="มูลค่าสินค้าเคลม" value={dashboard.data.kpi.product_value} icon={Wallet} isCurrency />
+            <KpiCard label="มูลค่าความเสียหาย" value={dashboard.data.kpi.damage_value} icon={Coins} isCurrency tone="warning" />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>จำนวนเคลมรายวัน</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DailyClaimsChart data={dashboard.data.charts.daily_claims} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>อัตราสินค้าเสียเทียบยอดขาย</CardTitle>
+              </CardHeader>
+              <CardContent className="flex h-[260px] flex-col items-center justify-center gap-2">
+                <div className="text-4xl font-bold tabular-nums text-brand-charcoal">
+                  {formatPercent(dashboard.data.charts.defect_rate_vs_sales)}
+                </div>
+                <p className="text-center text-xs text-slate-400">
+                  จำนวนเคลม ÷ จำนวนขายในช่วงวันที่เลือก
+                  {dashboard.data.charts.defect_rate_vs_sales === null && ' (ไม่มีข้อมูลยอดขายในช่วงนี้)'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>สัดส่วนตามสถานะ</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StatusWorkflowChart data={dashboard.data.charts.by_status} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>SKU ที่เสียหายสูงสุด</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RankedBarChart
+                  data={topSkuRows}
+                  labelKey="label"
+                  valueKey="value"
+                  valueLabel="มูลค่าความเสียหาย"
+                  emptyTitle="ไม่มีข้อมูล SKU ในช่วงที่เลือก"
+                  formatValue={(v) => formatCurrency(v)}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>อาการเสียที่พบบ่อย</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RankedBarChart data={topIssueRows} labelKey="issue" valueKey="count" valueLabel="จำนวนครั้ง" emptyTitle="ไม่มีข้อมูลอาการเสีย" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>มูลค่าความเสียหายตามแบรนด์</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RankedBarChart
+                  data={brandRows}
+                  labelKey="brand"
+                  valueKey="value"
+                  valueLabel="มูลค่าความเสียหาย"
+                  emptyTitle="ไม่มีข้อมูลแบรนด์ในช่วงที่เลือก"
+                  formatValue={(v) => formatCurrency(v)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {dashboard.isLoading && dashboard.data && <LoadingState label="กำลังอัปเดตข้อมูล..." />}
+    </div>
+  );
+}
