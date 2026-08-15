@@ -170,6 +170,7 @@ export interface ReportRow {
   defect_rate: number | null;
   in_progress_count: number;
   shipped_count: number;
+  status_counts: Record<ClaimStatus, number>;
   damage_value: number;
 }
 
@@ -177,7 +178,7 @@ export interface ReportResponse {
   ok: true;
   filters: Record<string, string>;
   rows: ReportRow[];
-  summary: { total_sku: number; total_qty_claimed: number; total_damage_value: number };
+  summary: { total_sku: number; total_qty_claimed: number; total_damage_value: number; by_status: Record<ClaimStatus, number> };
 }
 
 export interface MetaResponse {

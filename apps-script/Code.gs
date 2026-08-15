@@ -419,6 +419,12 @@ function reportSkuTable_(p) {
     return true;
   });
 
+  const ALL_STATUSES = OPEN_STATUSES.concat(CLOSED_STATUSES);
+  const emptyStatusCounts_ = function() {
+    return ALL_STATUSES.reduce(function(o, s) { o[s] = 0; return o; }, {});
+  };
+  const overallStatusCounts = emptyStatusCounts_();
+
   const groups = {};
   items.forEach(function(i) {
     const key = i.sku || 'ไม่ระบุ SKU';
@@ -427,7 +433,7 @@ function reportSkuTable_(p) {
       groups[key] = {
         sku: i.sku || '', product_name: i.product_name || prod.product_name || '',
         model: i.model || prod.model || '', brand: prod.brand || '',
-        qty_claimed: 0, in_progress_count: 0, shipped_count: 0, damage_value: 0, claim_nos: {}
+        qty_claimed: 0, damage_value: 0, claim_nos: {}, status_counts: emptyStatusCounts_()
       };
     }
     const g = groups[key];
@@ -435,8 +441,10 @@ function reportSkuTable_(p) {
     g.damage_value += Number(i.repair_cost || 0);
     g.claim_nos[i.claim_no] = true;
     const status = claimNos[i.claim_no] && claimNos[i.claim_no].status;
-    if (status === 'กำลังดำเนินการ' || status === 'รออะไหล่') g.in_progress_count += 1;
-    if (status === 'จัดส่งแล้ว' || status === 'ปิดเคส') g.shipped_count += 1;
+    if (status && g.status_counts.hasOwnProperty(status)) {
+      g.status_counts[status] += 1;
+      overallStatusCounts[status] += 1;
+    }
   });
 
   const salesBySku = {};
@@ -449,11 +457,14 @@ function reportSkuTable_(p) {
   const rows = Object.keys(groups).map(function(key) {
     const g = groups[key];
     const qtySold = salesBySku[g.sku] || 0;
+    const inProgressCount = (g.status_counts['กำลังดำเนินการ'] || 0) + (g.status_counts['รออะไหล่'] || 0);
+    const shippedCount = (g.status_counts['จัดส่งแล้ว'] || 0) + (g.status_counts['ปิดเคส'] || 0);
     return {
       sku: g.sku, product_name: g.product_name, model: g.model, brand: g.brand,
       qty_sold: qtySold, qty_claimed: g.qty_claimed,
       defect_rate: qtySold > 0 ? Number((g.qty_claimed / qtySold * 100).toFixed(2)) : null,
-      in_progress_count: g.in_progress_count, shipped_count: g.shipped_count,
+      in_progress_count: inProgressCount, shipped_count: shippedCount,
+      status_counts: g.status_counts,
       damage_value: Number(g.damage_value.toFixed(2))
     };
   }).sort(function(a, b) { return b.qty_claimed - a.qty_claimed; });
@@ -465,7 +476,8 @@ function reportSkuTable_(p) {
     summary: {
       total_sku: rows.length,
       total_qty_claimed: rows.reduce(function(s, r) { return s + r.qty_claimed; }, 0),
-      total_damage_value: Number(rows.reduce(function(s, r) { return s + r.damage_value; }, 0).toFixed(2))
+      total_damage_value: Number(rows.reduce(function(s, r) { return s + r.damage_value; }, 0).toFixed(2)),
+      by_status: overallStatusCounts
     }
   };
 }

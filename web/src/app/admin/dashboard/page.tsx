@@ -27,7 +27,8 @@ import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-ba
 import { Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
-import { formatCurrency, formatPercent } from '@/lib/formatters';
+import { formatCurrency, formatNumber, formatPercent } from '@/lib/formatters';
+import { cn } from '@/lib/utils';
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const defaultFrom = () => format(subDays(new Date(), 29), 'yyyy-MM-dd');
@@ -44,12 +45,44 @@ export default function AdminDashboardPage() {
   );
   const topIssueRows = useMemo(() => dashboard.data?.charts.top_issues ?? [], [dashboard.data]);
   const brandRows = useMemo(() => dashboard.data?.charts.damage_by_brand ?? [], [dashboard.data]);
+  const totalOpen = dashboard.data
+    ? dashboard.data.kpi.waiting_receive + dashboard.data.kpi.received + dashboard.data.kpi.in_progress + dashboard.data.kpi.waiting_ship
+    : 0;
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-brand-charcoal">Dashboard</h1>
-        <p className="text-sm text-slate-500">ภาพรวมเคลมและความเสียหายจากข้อมูลจริงใน Google Sheets</p>
+        <p className="text-sm text-slate-500">
+          หน้านี้คือภาพรวมงานเคลมสินค้าทั้งหมด — ใช้ดูว่าวันนี้มีเคสอะไรเข้าใหม่ ค้างอยู่กี่เคส และมีเคสไหนเกินกำหนดต้องรีบจัดการ
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 rounded-2xl bg-brand-charcoal p-5 text-white shadow-sm sm:grid-cols-4">
+        {dashboard.isLoading && !dashboard.data
+          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg bg-white/10" />)
+          : dashboard.data && (
+              <>
+                <div>
+                  <div className="text-3xl font-bold tabular-nums">{formatNumber(dashboard.data.kpi.claims_today)}</div>
+                  <div className="mt-0.5 text-xs text-white/60">เคลมเข้าใหม่วันนี้</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold tabular-nums">{formatNumber(totalOpen)}</div>
+                  <div className="mt-0.5 text-xs text-white/60">ค้างดำเนินการทั้งหมด</div>
+                </div>
+                <div>
+                  <div className={cn('text-3xl font-bold tabular-nums', dashboard.data.kpi.overdue_sla > 0 && 'text-red-400')}>
+                    {formatNumber(dashboard.data.kpi.overdue_sla)}
+                  </div>
+                  <div className="mt-0.5 text-xs text-white/60">เกิน SLA ต้องรีบจัดการ</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold tabular-nums">{formatNumber(dashboard.data.kpi.closed)}</div>
+                  <div className="mt-0.5 text-xs text-white/60">ปิดเคสแล้ว (ช่วงที่เลือก)</div>
+                </div>
+              </>
+            )}
       </div>
 
       <FilterBar>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { Download, FileSpreadsheet, Search, X } from 'lucide-react';
 import { gvApi, type ReportFilters } from '@/lib/api';
@@ -10,27 +10,42 @@ import { FilterBar, FilterField } from '@/components/ui/filter-bar';
 import { Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
+import { StatusWorkflowChart } from '@/components/dashboard/charts';
 import { formatCurrency, formatNumber, formatPercent, formatThaiDateTime } from '@/lib/formatters';
 import { exportCsv, exportExcel } from '@/lib/export';
-import type { ReportRow } from '@/lib/types';
+import { CLAIM_STATUSES, type ReportRow } from '@/lib/types';
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const defaultFrom = () => format(subDays(new Date(), 29), 'yyyy-MM-dd');
 
 const EMPTY_FILTERS: ReportFilters = { from: defaultFrom(), to: today(), sku: '', model: '', brand: '', status: '', carrier: '' };
 
-const COLUMNS: { key: keyof ReportRow; label: string }[] = [
+type FlatReportRow = Omit<ReportRow, 'status_counts'> & Record<string, string | number | null>;
+
+const BASE_COLUMNS: { key: keyof FlatReportRow; label: string }[] = [
   { key: 'sku', label: 'SKU' },
   { key: 'product_name', label: 'ชื่อสินค้า' },
   { key: 'model', label: 'รุ่น' },
   { key: 'qty_sold', label: 'จำนวนขาย' },
   { key: 'qty_claimed', label: 'จำนวนเคลม' },
   { key: 'defect_rate', label: 'เปอร์เซ็นต์เสีย (%)' },
-  { key: 'in_progress_count', label: 'กำลังดำเนินการ' },
-  { key: 'shipped_count', label: 'จัดส่งแล้ว' },
-  { key: 'damage_value', label: 'มูลค่าความเสียหาย' },
 ];
+
+const STATUS_COLUMNS: { key: keyof FlatReportRow; label: string }[] = CLAIM_STATUSES.map((s) => ({ key: s, label: s }));
+
+const TAIL_COLUMNS: { key: keyof FlatReportRow; label: string }[] = [{ key: 'damage_value', label: 'มูลค่าความเสียหาย' }];
+
+const COLUMNS = [...BASE_COLUMNS, ...STATUS_COLUMNS, ...TAIL_COLUMNS];
+
+const NUMERIC_KEYS = new Set([
+  'qty_sold',
+  'qty_claimed',
+  'defect_rate',
+  'damage_value',
+  ...CLAIM_STATUSES,
+]);
 
 export default function AdminReportsPage() {
   const [draft, setDraft] = useState<ReportFilters>(EMPTY_FILTERS);
@@ -48,13 +63,21 @@ export default function AdminReportsPage() {
     setApplied(EMPTY_FILTERS);
   }
 
-  const rows = report.data?.rows ?? [];
+  const rows = useMemo(() => report.data?.rows ?? [], [report.data]);
+  const flatRows: FlatReportRow[] = useMemo(
+    () =>
+      rows.map((row) => {
+        const { status_counts, ...rest } = row;
+        return { ...rest, ...status_counts };
+      }),
+    [rows],
+  );
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-brand-charcoal">รายงาน SKU</h1>
-        <p className="text-sm text-slate-500">สรุปจำนวนขาย เคลม และมูลค่าความเสียหายรายสินค้า</p>
+        <p className="text-sm text-slate-500">สรุปจำนวนขาย เคลม และมูลค่าความเสียหายรายสินค้า ครบทุกสถานะ ตามตัวกรองที่เลือก</p>
       </div>
 
       <form onSubmit={handleSearch}>
@@ -144,10 +167,10 @@ export default function AdminReportsPage() {
           {report.data && ` · พบ ${formatNumber(report.data.summary.total_sku)} SKU · มูลค่าความเสียหายรวม ${formatCurrency(report.data.summary.total_damage_value)}`}
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportCsv(rows, COLUMNS, 'gv-carehub-sku-report')}>
+          <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportCsv(flatRows, COLUMNS, 'gv-carehub-sku-report')}>
             <Download className="h-3.5 w-3.5" /> Export CSV
           </Button>
-          <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportExcel(rows, COLUMNS, 'gv-carehub-sku-report', 'SKU Report')}>
+          <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportExcel(flatRows, COLUMNS, 'gv-carehub-sku-report', 'SKU Report')}>
             <FileSpreadsheet className="h-3.5 w-3.5" /> Export Excel
           </Button>
         </div>
@@ -158,32 +181,46 @@ export default function AdminReportsPage() {
       {report.data && rows.length === 0 && <EmptyState title="ไม่พบข้อมูลตามตัวกรองที่เลือก" />}
 
       {report.data && rows.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {COLUMNS.map((c) => (
-                <TableHead key={String(c.key)} className={['qty_sold', 'qty_claimed', 'defect_rate', 'in_progress_count', 'shipped_count', 'damage_value'].includes(String(c.key)) ? 'text-right' : ''}>
-                  {c.label}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.sku || row.product_name}>
-                <TableCell className="font-medium">{row.sku || '-'}</TableCell>
-                <TableCell>{row.product_name || '-'}</TableCell>
-                <TableCell>{row.model || '-'}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(row.qty_sold)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(row.qty_claimed)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatPercent(row.defect_rate)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(row.in_progress_count)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(row.shipped_count)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatCurrency(row.damage_value)}</TableCell>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>สรุปจำนวนเคสตามสถานะ (ทุกสถานะ ตามตัวกรองที่เลือก)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StatusWorkflowChart data={report.data.summary.by_status} />
+            </CardContent>
+          </Card>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {COLUMNS.map((c) => (
+                  <TableHead key={String(c.key)} className={NUMERIC_KEYS.has(String(c.key)) ? 'text-right' : ''}>
+                    {c.label}
+                  </TableHead>
+                ))}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {flatRows.map((row) => (
+                <TableRow key={row.sku || row.product_name}>
+                  <TableCell className="font-medium">{row.sku || '-'}</TableCell>
+                  <TableCell>{row.product_name || '-'}</TableCell>
+                  <TableCell>{row.model || '-'}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumber(row.qty_sold as number)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumber(row.qty_claimed as number)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatPercent(row.defect_rate as number | null)}</TableCell>
+                  {CLAIM_STATUSES.map((s) => (
+                    <TableCell key={s} className="text-right tabular-nums">
+                      {formatNumber((row[s] as number) || 0)}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right tabular-nums">{formatCurrency(row.damage_value as number)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
       )}
     </div>
   );
