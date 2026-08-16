@@ -155,18 +155,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/gv-logo-icon.png" alt="Gadget Villa" width={44} height={44} className="rounded-xl object-cover" />
-            <div>
-              <div className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-white/70">Gadget Villa</div>
-              <div className="text-[19px] font-bold leading-tight text-brand-lime">GV CareHub</div>
-              <div className="text-[10.5px] leading-tight text-white/50">After-sales Claims Management</div>
-            </div>
-          </div>
-          <button onClick={() => setOpen(false)} className="text-white/70 md:hidden">
+        <div className="relative">
+          <button onClick={() => setOpen(false)} className="absolute right-0 top-0 text-white/70 md:hidden">
             <X className="h-5 w-5" />
           </button>
+          <div className="flex flex-col items-center gap-2 pb-1 pt-1 text-center">
+            <Image src="/gv-logo-icon.png" alt="Gadget Villa" width={64} height={64} className="rounded-2xl object-cover shadow-lg shadow-black/40" />
+            <div className="text-[12px] font-bold uppercase leading-tight tracking-[0.15em] text-white">Gadget Villa</div>
+            <div className="h-px w-10 bg-white/20" />
+            <div className="text-[22px] font-extrabold leading-tight">
+              <span className="text-white">GV</span> <span className="text-brand-lime">CareHub</span>
+            </div>
+            <div className="text-[10.5px] leading-tight text-white/50">After-sales Claims Management</div>
+          </div>
         </div>
 
         <nav className="flex flex-1 flex-col gap-6">
