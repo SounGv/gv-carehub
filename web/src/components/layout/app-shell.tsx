@@ -158,15 +158,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button onClick={() => setOpen(false)} className="absolute right-0 top-0 text-white/70 md:hidden">
             <X className="h-5 w-5" />
           </button>
-          <div className="flex flex-col items-center gap-2 pb-1 pt-1 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-brand-lime text-2xl font-black tracking-tight text-brand-lime">
-              GV
-            </div>
-            <div className="text-[12px] font-bold uppercase leading-tight tracking-[0.15em] text-white">Gadget Villa</div>
+          <div className="flex flex-col items-center gap-1.5 pb-1 pt-1 text-center">
+            <div className="text-[40px] font-black italic leading-none tracking-tighter text-brand-lime">GV</div>
+            <div className="text-[11px] font-semibold uppercase leading-tight tracking-[0.2em] text-white/60">Gadget Villa</div>
             <div className="h-px w-10 bg-white/20" />
-            <div className="text-[22px] font-extrabold leading-tight">
-              <span className="text-white">GV</span> <span className="text-brand-lime">CareHub</span>
-            </div>
+            <div className="text-[19px] font-extrabold leading-tight text-white">CareHub</div>
             <div className="text-[10.5px] leading-tight text-white/50">After-sales Claims Management</div>
           </div>
         </div>
