@@ -82,6 +82,10 @@ function doGet(e) {
     else if (action === 'claim_detail') result = claimDetail_(p.claim_no || '');
     else if (action === 'claim_report') result = claimReport_(p);
     else if (action === 'legacy_report') result = legacyReport_();
+    else if (action === 'legacy_service_log_rows') result = legacyServiceLogRows_(p);
+    else if (action === 'legacy_clsbs_rows') result = legacyClsbsRows_(p);
+    else if (action === 'legacy_meta') result = legacyMeta_();
+    else if (action === 'sheet_inspect') result = sheetInspect_(p.sheet || '');
     else throw new Error('Unknown action: ' + action);
     return json_(result);
   } catch (err) {
@@ -773,12 +777,11 @@ function legacySum_(values) {
 }
 
 function legacyServiceLogStats_() {
-  const issueGroupHeader = 'กลุ่มของปัญหา (เคลม, แจ้งปัญหาสินค้าการใช้งาน, รีวิว, เปลี่ยนคินสินค้า)';
-  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, ['วันที่', 'ร้าน', 'สินค้า', issueGroupHeader]);
+  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, ['วันที่', 'ร้าน', 'สินค้า', LEGACY_ISSUE_GROUP_HEADER]);
   const dates = cols['วันที่'];
   const channels = cols['ร้าน'];
   const products = cols['สินค้า'];
-  const issueGroups = cols[issueGroupHeader];
+  const issueGroups = cols[LEGACY_ISSUE_GROUP_HEADER];
 
   const byMonth = {};
   dates.forEach(function(d) {
@@ -815,6 +818,201 @@ function legacyClsbsStats_() {
       refunded_to_customer: legacySum_(cols['เงินที่คืนให้ลูกค้า'])
     }
   };
+}
+
+/**
+ * Real-record (not aggregated) reads of the two legacy sheets, filtered and
+ * paginated in memory after one bounded column read via legacySheetColumns_.
+ * Distinct from legacyReport_ above, which only ever returns counts/sums.
+ */
+
+const LEGACY_ISSUE_GROUP_HEADER = 'กลุ่มของปัญหา (เคลม, แจ้งปัญหาสินค้าการใช้งาน, รีวิว, เปลี่ยนคินสินค้า)';
+
+function legacyDistinctValues_(values) {
+  const seen = {};
+  const out = [];
+  values.forEach(function(v) {
+    const s = String(v || '').trim();
+    if (s && !seen[s]) { seen[s] = true; out.push(s); }
+  });
+  return out.sort();
+}
+
+function legacyMeta_() {
+  const serviceCols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, ['ร้าน', LEGACY_ISSUE_GROUP_HEADER]);
+  const clsbsCols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    'ยี่ห้อสินค้าที่รับเคลม', 'กลุ่มสินค้าที่รับเคลม', 'สถานะการเคลมสินค้า'
+  ]);
+  return {
+    ok: true,
+    channels: legacyDistinctValues_(serviceCols['ร้าน']),
+    issue_groups: legacyDistinctValues_(serviceCols[LEGACY_ISSUE_GROUP_HEADER]),
+    brands: legacyDistinctValues_(clsbsCols['ยี่ห้อสินค้าที่รับเคลม']),
+    product_groups: legacyDistinctValues_(clsbsCols['กลุ่มสินค้าที่รับเคลม']),
+    statuses: legacyDistinctValues_(clsbsCols['สถานะการเคลมสินค้า'])
+  };
+}
+
+function legacyPaginate_(rows, p) {
+  const pageSize = Math.max(1, Number(p.page_size) || 50);
+  const page = Math.max(1, Number(p.page) || 1);
+  const start = (page - 1) * pageSize;
+  return {
+    ok: true,
+    rows: rows.slice(start, start + pageSize),
+    total_count: rows.length,
+    page: page,
+    page_size: pageSize
+  };
+}
+
+/** Sheet stores phone numbers as bare numbers, dropping the leading 0 (e.g. 891333557). */
+function legacyFormatPhone_(v) {
+  const s = String(v || '').trim();
+  if (/^\d+$/.test(s) && s.length === 9) return '0' + s;
+  return s;
+}
+
+function legacyServiceStatus_(receivedFromCustomer, receivedIntoSystem, returnedToCustomer) {
+  if (returnedToCustomer === true) return 'ส่งคืนลูกค้าแล้ว';
+  if (receivedIntoSystem === true) return 'รับเข้าระบบแล้ว';
+  if (receivedFromCustomer === true) return 'รับสินค้าจากลูกค้าแล้ว';
+  return 'รอดำเนินการ';
+}
+
+function legacyServiceLogRows_(p) {
+  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, [
+    '', 'วันที่', 'ร้าน', 'ชื่อลูกค้า', 'เบอร์โทร', 'เลขที่ ออเดอร์',
+    'สินค้า', 'Serial', LEGACY_ISSUE_GROUP_HEADER, 'ปัญหา', 'วิธีแก้ไข',
+    'วันที่ได้รับสินค้าเสีย', 'วันที่ส่งสินค้าเคลมคืนลูกค้า',
+    'Tracking ส่งคืน', 'ค่าขนส่ง',
+    'ได้รับของเสียจากลูกค้า', 'ฝ่ายเคลมรับสินค้าเข้าระบบ', 'ส่งสินค้าคืนลูกค้า'
+  ]);
+  const range = dateRange_(p.from, p.to);
+  const n = cols['วันที่'].length;
+  const q = p.q ? String(p.q).trim().toLowerCase() : '';
+  const rows = [];
+  for (let idx = 0; idx < n; idx++) {
+    const d = new Date(cols['วันที่'][idx]);
+    if (isNaN(d) || d < range.from || d > range.to) continue;
+    const row = {
+      case_no: String(cols[''][idx] || ''),
+      date: cols['วันที่'][idx] || '',
+      channel: String(cols['ร้าน'][idx] || ''),
+      customer_name: String(cols['ชื่อลูกค้า'][idx] || ''),
+      phone: legacyFormatPhone_(cols['เบอร์โทร'][idx]),
+      order_no: String(cols['เลขที่ ออเดอร์'][idx] || ''),
+      product: String(cols['สินค้า'][idx] || ''),
+      serial_no: String(cols['Serial'][idx] || ''),
+      issue_group: String(cols[LEGACY_ISSUE_GROUP_HEADER][idx] || ''),
+      issue_detail: String(cols['ปัญหา'][idx] || ''),
+      resolution_method: String(cols['วิธีแก้ไข'][idx] || ''),
+      received_date: cols['วันที่ได้รับสินค้าเสีย'][idx] || '',
+      returned_date: cols['วันที่ส่งสินค้าเคลมคืนลูกค้า'][idx] || '',
+      return_tracking_no: String(cols['Tracking ส่งคืน'][idx] || ''),
+      shipping_cost: legacyNumber_(cols['ค่าขนส่ง'][idx]),
+      status: legacyServiceStatus_(
+        cols['ได้รับของเสียจากลูกค้า'][idx], cols['ฝ่ายเคลมรับสินค้าเข้าระบบ'][idx], cols['ส่งสินค้าคืนลูกค้า'][idx]
+      )
+    };
+    if (p.channel && row.channel !== p.channel) continue;
+    if (p.issue_group && row.issue_group !== p.issue_group) continue;
+    if (q) {
+      const haystack = [row.case_no, row.customer_name, row.phone, row.order_no, row.product, row.serial_no].join(' ').toLowerCase();
+      if (haystack.indexOf(q) < 0) continue;
+    }
+    rows.push(row);
+  }
+  rows.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+  return legacyPaginate_(rows, p);
+}
+
+/** "05 January 2026 (09:35:22)" — the only date column on this sheet reliably in one format. */
+function parseClsbsRepairDate_(v) {
+  const s = String(v || '');
+  const m = s.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})/);
+  if (!m) return null;
+  const months = {
+    January: 0, February: 1, March: 2, April: 3, May: 4, June: 5,
+    July: 6, August: 7, September: 8, October: 9, November: 10, December: 11
+  };
+  const month = months[m[2]];
+  if (month === undefined) return null;
+  return new Date(Number(m[3]), month, Number(m[1]));
+}
+
+function legacyClsbsRows_(p) {
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    'ID', 'Bill Number', 'วันที่รับซ่อม', 'ชื่อลูกค้า', 'เบอร์โทรลูกค้า', 'เบอร์มือถือลูกค้า',
+    'ชื่อสินค้าที่รับเคลม', 'SN ที่รับเคลม', 'กลุ่มสินค้าที่รับเคลม', 'ยี่ห้อสินค้าที่รับเคลม', 'รุ่นสินค้าที่รับเคลม', 'อาการเสีย',
+    'ชื่อผู้จำหน่าย', 'วันที่ส่งสินค้าให้ผู้จำหน่าย', 'วันที่รับของคืนจากผู้จำหน่าย', 'วันที่คืนของให้ลูกค้า',
+    'เงินที่ชำระให้ผู้จำหน่าย', 'เงินที่ได้รับจากผู้จำหน่าย', 'เงินที่เรียกเก็บจากลูกค้า', 'เงินที่คืนให้ลูกค้า',
+    'สถานะการเคลมสินค้า'
+  ]);
+  const range = dateRange_(p.from, p.to);
+  const n = cols['ID'].length;
+  const q = p.q ? String(p.q).trim().toLowerCase() : '';
+  const rows = [];
+  for (let idx = 0; idx < n; idx++) {
+    const repairDateRaw = cols['วันที่รับซ่อม'][idx];
+    if (p.from || p.to) {
+      const repairDate = parseClsbsRepairDate_(repairDateRaw);
+      if (!repairDate || repairDate < range.from || repairDate > range.to) continue;
+    }
+    const row = {
+      id: String(cols['ID'][idx] || ''),
+      bill_number: String(cols['Bill Number'][idx] || ''),
+      repair_date: String(repairDateRaw || ''),
+      customer_name: String(cols['ชื่อลูกค้า'][idx] || ''),
+      phone: String(cols['เบอร์โทรลูกค้า'][idx] || cols['เบอร์มือถือลูกค้า'][idx] || ''),
+      product_name: String(cols['ชื่อสินค้าที่รับเคลม'][idx] || ''),
+      serial_no: String(cols['SN ที่รับเคลม'][idx] || ''),
+      product_group: String(cols['กลุ่มสินค้าที่รับเคลม'][idx] || ''),
+      brand: String(cols['ยี่ห้อสินค้าที่รับเคลม'][idx] || ''),
+      model: String(cols['รุ่นสินค้าที่รับเคลม'][idx] || ''),
+      symptom: String(cols['อาการเสีย'][idx] || ''),
+      vendor_name: String(cols['ชื่อผู้จำหน่าย'][idx] || ''),
+      sent_to_vendor_date: String(cols['วันที่ส่งสินค้าให้ผู้จำหน่าย'][idx] || ''),
+      received_from_vendor_date: String(cols['วันที่รับของคืนจากผู้จำหน่าย'][idx] || ''),
+      returned_to_customer_date: String(cols['วันที่คืนของให้ลูกค้า'][idx] || ''),
+      paid_to_vendor: legacyNumber_(cols['เงินที่ชำระให้ผู้จำหน่าย'][idx]),
+      received_from_vendor: legacyNumber_(cols['เงินที่ได้รับจากผู้จำหน่าย'][idx]),
+      charged_to_customer: legacyNumber_(cols['เงินที่เรียกเก็บจากลูกค้า'][idx]),
+      refunded_to_customer: legacyNumber_(cols['เงินที่คืนให้ลูกค้า'][idx]),
+      status: String(cols['สถานะการเคลมสินค้า'][idx] || '')
+    };
+    if (p.brand && row.brand !== p.brand) continue;
+    if (p.product_group && row.product_group !== p.product_group) continue;
+    if (p.status && row.status !== p.status) continue;
+    if (q) {
+      const haystack = [row.id, row.bill_number, row.customer_name, row.serial_no, row.product_name].join(' ').toLowerCase();
+      if (haystack.indexOf(q) < 0) continue;
+    }
+    rows.push(row);
+  }
+  rows.sort(function(a, b) {
+    const da = parseClsbsRepairDate_(a.repair_date) || new Date(0);
+    const db = parseClsbsRepairDate_(b.repair_date) || new Date(0);
+    return db - da;
+  });
+  return legacyPaginate_(rows, p);
+}
+
+/**
+ * Diagnostic helper (temporary): returns a sheet's real header row + a few
+ * sample rows, so the exact real-world column names/shape can be inspected
+ * without guessing. Not used by any frontend page.
+ */
+function sheetInspect_(sheetName) {
+  if (!sheetName) throw new Error('sheet is required');
+  const sh = spreadsheet_().getSheetByName(sheetName);
+  if (!sh) throw new Error('ไม่พบชีตชื่อ ' + sheetName);
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  const headers = lastCol > 0 ? sh.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  const sampleCount = Math.min(3, Math.max(0, lastRow - 1));
+  const sample = sampleCount > 0 ? sh.getRange(2, 1, sampleCount, lastCol).getValues() : [];
+  return { ok: true, sheet: sheetName, last_row: lastRow, last_col: lastCol, headers: headers, sample: sample };
 }
 
 /* ---------------- Claim detail (staff) ---------------- */
@@ -978,10 +1176,19 @@ function sha256_(value) {
   return bytes.map(function(b) { return (b + 256) % 256; }).map(function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
 }
 
+// Reused across every readObjects_()/writeObject_() call within one request. Opening a
+// Spreadsheet by ID is one of the slowest calls in Apps Script (network round-trip); actions
+// like claim_report/dashboard/claim_detail read several sheets each, and were previously
+// re-opening the spreadsheet on every single read. Caching the handle here is safe — it's just
+// a handle, not a data snapshot, so getRange()/getValues() still always return live data.
+let SPREADSHEET_CACHE_ = null;
+
 function spreadsheet_() {
+  if (SPREADSHEET_CACHE_) return SPREADSHEET_CACHE_;
   const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
   if (!id) throw new Error('ตั้งค่า Script Property: SPREADSHEET_ID ก่อนใช้งาน');
-  return SpreadsheetApp.openById(id);
+  SPREADSHEET_CACHE_ = SpreadsheetApp.openById(id);
+  return SPREADSHEET_CACHE_;
 }
 
 function json_(data) {

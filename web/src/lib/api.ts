@@ -13,7 +13,11 @@ import type {
   CreateClaimPayload,
   CreateClaimResult,
   DashboardResponse,
+  LegacyClsbsRow,
+  LegacyMetaResponse,
   LegacyReportResponse,
+  LegacyRowsResponse,
+  LegacyServiceLogRow,
   MetaResponse,
   ReportResponse,
   ReserveClaimNoResponse,
@@ -109,6 +113,27 @@ export interface ClaimReportFilters {
   resolution_method?: string;
 }
 
+export interface LegacyServiceLogFilters {
+  from?: string;
+  to?: string;
+  channel?: string;
+  issue_group?: string;
+  q?: string;
+  page?: string;
+  page_size?: string;
+}
+
+export interface LegacyClsbsFilters {
+  from?: string;
+  to?: string;
+  brand?: string;
+  product_group?: string;
+  status?: string;
+  q?: string;
+  page?: string;
+  page_size?: string;
+}
+
 export const gvApi = {
   health: () => apiGet<{ ok: true; service: string; server_time: string }>('health'),
 
@@ -125,6 +150,14 @@ export const gvApi = {
   dashboard: (filters: DashboardFilters) => apiGet<DashboardResponse>('dashboard', filters as Record<string, string | undefined>),
 
   legacyReport: () => apiGet<LegacyReportResponse>('legacy_report'),
+
+  legacyMeta: () => apiGet<LegacyMetaResponse>('legacy_meta'),
+
+  legacyServiceLogRows: (filters: LegacyServiceLogFilters) =>
+    apiGet<LegacyRowsResponse<LegacyServiceLogRow>>('legacy_service_log_rows', filters as Record<string, string | undefined>),
+
+  legacyClsbsRows: (filters: LegacyClsbsFilters) =>
+    apiGet<LegacyRowsResponse<LegacyClsbsRow>>('legacy_clsbs_rows', filters as Record<string, string | undefined>),
 
   claimDetail: (claimNo: string) => apiGet<ClaimDetailResponse>('claim_detail', { claim_no: claimNo }),
 

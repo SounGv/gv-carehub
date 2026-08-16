@@ -242,6 +242,67 @@ export interface LegacyReportResponse {
   clsbs: LegacyClsbsStats;
 }
 
+/** One real record from the "บริการหลังการขาย" sheet — status is derived from 3 boolean milestone columns. */
+export interface LegacyServiceLogRow {
+  case_no: string;
+  date: string;
+  channel: string;
+  customer_name: string;
+  phone: string;
+  order_no: string;
+  product: string;
+  serial_no: string;
+  issue_group: string;
+  issue_detail: string;
+  resolution_method: string;
+  received_date: string;
+  returned_date: string;
+  return_tracking_no: string;
+  shipping_cost: number;
+  status: string;
+}
+
+/** One real record from the "CLSBS" sheet (vendor RMA log). Only repair_date is a parsed/filterable date — the rest are raw legacy text. */
+export interface LegacyClsbsRow {
+  id: string;
+  bill_number: string;
+  repair_date: string;
+  customer_name: string;
+  phone: string;
+  product_name: string;
+  serial_no: string;
+  product_group: string;
+  brand: string;
+  model: string;
+  symptom: string;
+  vendor_name: string;
+  sent_to_vendor_date: string;
+  received_from_vendor_date: string;
+  returned_to_customer_date: string;
+  paid_to_vendor: number;
+  received_from_vendor: number;
+  charged_to_customer: number;
+  refunded_to_customer: number;
+  status: string;
+}
+
+export interface LegacyRowsResponse<T> {
+  ok: true;
+  rows: T[];
+  total_count: number;
+  page: number;
+  page_size: number;
+}
+
+export interface LegacyMetaResponse {
+  ok: true;
+  channels: string[];
+  issue_groups: string[];
+  brands: string[];
+  product_groups: string[];
+  statuses: string[];
+}
+
 /** One row per claim item — the detailed "รายงานเคลม" report, joined across claim/item/shipment data. */
 export interface ClaimReportRow {
   claim_no: string;
