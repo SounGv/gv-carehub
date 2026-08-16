@@ -167,7 +167,7 @@ export default function AdminDashboardPage() {
                 <p className="mt-1 text-xs text-slate-400">ข้อมูลย้อนหลังทั้งหมดจากชีตเดิม อ่านสดโดยตรง แคชไว้สูงสุด 3 นาที</p>
               </div>
               <Link
-                href="/admin/clsbs"
+                href="/admin/reports?tab=service_log"
                 className="flex flex-none items-center gap-1 whitespace-nowrap rounded-lg bg-brand-charcoal px-3 py-2 text-xs font-semibold text-white hover:bg-brand-charcoal/90"
               >
                 ดูรายละเอียดทั้งหมด <ArrowRight className="h-3.5 w-3.5" />

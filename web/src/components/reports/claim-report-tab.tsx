@@ -99,7 +99,7 @@ const COLUMNS = COLUMN_GROUPS.flatMap((g) => g.columns);
 const NUMERIC_KEYS = new Set(['repair_cost']);
 const SHIPPED_STATUSES = ['จัดส่งแล้ว', 'ปิดเคส'];
 
-export default function AdminClaimsReportPage() {
+export function ClaimReportTab() {
   const [draft, setDraft] = useState<ClaimReportFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<ClaimReportFilters>(EMPTY_FILTERS);
   const meta = useMeta();
@@ -124,13 +124,10 @@ export default function AdminClaimsReportPage() {
   const notShippedCount = report.data ? report.data.summary.total_cases - shippedCount : 0;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-brand-charcoal">รายงานเคลม</h1>
-        <p className="text-sm text-slate-500">
-          ข้อมูลจริงรายเคส — สินค้า อาการเสีย ซีเรียล วันที่รับ/ส่งคืน และวิธีแก้ไข ตามช่วงเวลาที่เลือก (ดูภาพรวมและกราฟที่หน้า Dashboard)
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">
+        ข้อมูลจริงรายเคส — สินค้า อาการเสีย ซีเรียล วันที่รับ/ส่งคืน และวิธีแก้ไข ตามช่วงเวลาที่เลือก (ดูภาพรวมและกราฟที่หน้า Dashboard)
+      </p>
 
       <form onSubmit={handleSearch}>
         <FilterBar>
@@ -316,8 +313,6 @@ export default function AdminClaimsReportPage() {
           )}
         </>
       )}
-
-      {report.isLoading && report.data && <LoadingState label="กำลังอัปเดตข้อมูล..." />}
     </div>
   );
 }
