@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
-import { LayoutDashboard, FileBarChart, PackageSearch, PackageX, Truck, Menu, X, Pencil, Check, Link2, Hash } from 'lucide-react';
+import { LayoutDashboard, FileBarChart, FileText, PackageSearch, PackageX, Truck, Menu, X, Pencil, Check, Link2, Hash } from 'lucide-react';
 import { gvApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
@@ -21,6 +21,7 @@ const OVERVIEW_GROUP: { title: string; items: NavItem[] } = {
   items: [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/reports', label: 'รายงาน SKU', icon: FileBarChart },
+    { href: '/admin/claims', label: 'รายงานเคลม', icon: FileText },
     { href: '/admin/clsbs', label: 'CLSBS', icon: PackageX },
   ],
 };

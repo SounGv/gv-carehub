@@ -9,6 +9,7 @@
 import type {
   ApiError,
   ClaimDetailResponse,
+  ClaimReportResponse,
   CreateClaimPayload,
   CreateClaimResult,
   DashboardResponse,
@@ -97,6 +98,17 @@ export interface ReportFilters {
   carrier?: string;
 }
 
+export interface ClaimReportFilters {
+  from?: string;
+  to?: string;
+  sku?: string;
+  model?: string;
+  brand?: string;
+  status?: string;
+  channel?: string;
+  resolution_method?: string;
+}
+
 export const gvApi = {
   health: () => apiGet<{ ok: true; service: string; server_time: string }>('health'),
 
@@ -107,6 +119,8 @@ export const gvApi = {
   search: (q: string) => apiGet<SearchResponse>('search', { q }),
 
   report: (filters: ReportFilters) => apiGet<ReportResponse>('report', filters as Record<string, string | undefined>),
+
+  claimReport: (filters: ClaimReportFilters) => apiGet<ClaimReportResponse>('claim_report', filters as Record<string, string | undefined>),
 
   dashboard: (filters: DashboardFilters) => apiGet<DashboardResponse>('dashboard', filters as Record<string, string | undefined>),
 

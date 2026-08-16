@@ -242,6 +242,46 @@ export interface LegacyReportResponse {
   clsbs: LegacyClsbsStats;
 }
 
+/** One row per claim item — the detailed "รายงานเคลม" report, joined across claim/item/shipment data. */
+export interface ClaimReportRow {
+  claim_no: string;
+  customer_name: string;
+  phone: string;
+  channel: string;
+  order_no: string;
+  sku: string;
+  product_name: string;
+  model: string;
+  brand: string;
+  issue_group: string;
+  issue_detail: string;
+  submitted_at: string;
+  received_at: string;
+  inbound_carrier: string;
+  inbound_tracking_no: string;
+  warranty_type: string;
+  resolution_method: string;
+  inspection_result: string;
+  repair_cost: number;
+  technician_note: string;
+  outbound_carrier: string;
+  outbound_tracking_no: string;
+  shipped_at: string;
+  status: ClaimStatus | string;
+}
+
+export interface ClaimReportResponse {
+  ok: true;
+  filters: Record<string, string>;
+  rows: ClaimReportRow[];
+  summary: {
+    total_cases: number;
+    total_repair_cost: number;
+    by_status: Record<string, number>;
+    by_resolution_method: Record<string, number>;
+  };
+}
+
 export interface CreateClaimResult {
   ok: true;
   claim_no: string;

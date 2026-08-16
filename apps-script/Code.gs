@@ -80,6 +80,7 @@ function doGet(e) {
     else if (action === 'dashboard') result = dashboardReport_(p);
     else if (action === 'meta') result = metaLists_();
     else if (action === 'claim_detail') result = claimDetail_(p.claim_no || '');
+    else if (action === 'claim_report') result = claimReport_(p);
     else if (action === 'legacy_report') result = legacyReport_();
     else throw new Error('Unknown action: ' + action);
     return json_(result);
@@ -501,6 +502,88 @@ function reportSkuTable_(p) {
       total_qty_claimed: rows.reduce(function(s, r) { return s + r.qty_claimed; }, 0),
       total_damage_value: Number(rows.reduce(function(s, r) { return s + r.damage_value; }, 0).toFixed(2)),
       by_status: overallStatusCounts
+    }
+  };
+}
+
+/* ---------------- Claim report (detailed, one row per case) ---------------- */
+
+function claimReport_(p) {
+  const range = dateRange_(p.from, p.to);
+  const claims = readObjects_(SHEETS.CLAIMS).filter(function(c) {
+    const d = new Date(c.submitted_at);
+    if (isNaN(d) || d < range.from || d > range.to) return false;
+    if (p.status && c.status !== p.status) return false;
+    if (p.channel && c.channel !== p.channel) return false;
+    return true;
+  });
+  const claimNos = {};
+  claims.forEach(function(c) { claimNos[c.claim_no] = c; });
+
+  const products = readObjects_(SHEETS.PRODUCTS);
+  const productBySku = {};
+  products.forEach(function(pr) { productBySku[pr.sku] = pr; });
+
+  const inboundByClaimNo = {};
+  const outboundByClaimNo = {};
+  readObjects_(SHEETS.SHIPMENTS).forEach(function(s) {
+    if (!claimNos[s.claim_no]) return;
+    if (s.direction === 'inbound') inboundByClaimNo[s.claim_no] = s;
+    else if (s.direction === 'outbound') outboundByClaimNo[s.claim_no] = s;
+  });
+
+  const items = readObjects_(SHEETS.ITEMS).filter(function(i) {
+    if (!claimNos[i.claim_no]) return false;
+    if (p.sku && i.sku !== p.sku) return false;
+    if (p.model && i.model !== p.model) return false;
+    if (p.resolution_method && i.resolution_method !== p.resolution_method) return false;
+    if (p.brand) {
+      const prod = productBySku[i.sku];
+      if (!prod || prod.brand !== p.brand) return false;
+    }
+    return true;
+  });
+
+  const rows = items.map(function(i) {
+    const c = claimNos[i.claim_no];
+    const inbound = inboundByClaimNo[i.claim_no];
+    const outbound = outboundByClaimNo[i.claim_no];
+    const prod = productBySku[i.sku] || {};
+    return {
+      claim_no: i.claim_no,
+      customer_name: c.customer_name || '', phone: c.phone || '', channel: c.channel || '', order_no: c.order_no || '',
+      sku: i.sku || '', product_name: i.product_name || prod.product_name || '', model: i.model || prod.model || '', brand: prod.brand || '',
+      issue_group: i.issue_group || '', issue_detail: i.issue_detail || '',
+      submitted_at: c.submitted_at || '', received_at: c.received_at || '',
+      inbound_carrier: inbound ? (inbound.carrier || '') : '', inbound_tracking_no: inbound ? (inbound.tracking_no || '') : '',
+      warranty_type: i.warranty_type || '', resolution_method: i.resolution_method || '', inspection_result: i.inspection_result || '',
+      repair_cost: Number(i.repair_cost || 0), technician_note: i.technician_note || '',
+      outbound_carrier: outbound ? (outbound.carrier || '') : '', outbound_tracking_no: outbound ? (outbound.tracking_no || '') : '',
+      shipped_at: c.shipped_at || '',
+      status: c.status || ''
+    };
+  }).sort(function(a, b) { return new Date(b.submitted_at) - new Date(a.submitted_at); });
+
+  const byResolutionMethod = {};
+  const byStatus = {};
+  rows.forEach(function(r) {
+    const rKey = r.resolution_method || 'ยังไม่ระบุ';
+    byResolutionMethod[rKey] = (byResolutionMethod[rKey] || 0) + 1;
+    byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+  });
+
+  return {
+    ok: true,
+    filters: {
+      from: p.from || '', to: p.to || '', sku: p.sku || '', model: p.model || '', brand: p.brand || '',
+      status: p.status || '', channel: p.channel || '', resolution_method: p.resolution_method || ''
+    },
+    rows: rows,
+    summary: {
+      total_cases: rows.length,
+      total_repair_cost: Number(rows.reduce(function(s, r) { return s + r.repair_cost; }, 0).toFixed(2)),
+      by_status: byStatus,
+      by_resolution_method: byResolutionMethod
     }
   };
 }
