@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
@@ -160,7 +159,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <X className="h-5 w-5" />
           </button>
           <div className="flex flex-col items-center gap-2 pb-1 pt-1 text-center">
-            <Image src="/gv-logo-icon.png" alt="Gadget Villa" width={64} height={64} className="rounded-2xl object-cover shadow-lg shadow-black/40" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-brand-lime text-2xl font-black tracking-tight text-brand-lime">
+              GV
+            </div>
             <div className="text-[12px] font-bold uppercase leading-tight tracking-[0.15em] text-white">Gadget Villa</div>
             <div className="h-px w-10 bg-white/20" />
             <div className="text-[22px] font-extrabold leading-tight">
