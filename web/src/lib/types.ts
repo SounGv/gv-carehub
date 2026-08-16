@@ -249,6 +249,12 @@ export interface CreateClaimResult {
   public_token: string;
 }
 
+/** Response from action=reserve_claim_no — pulls from the same atomic counter createClaim_ uses. */
+export interface ReserveClaimNoResponse {
+  ok: true;
+  claim_no: string;
+}
+
 export interface ApiError {
   ok: false;
   error: string;

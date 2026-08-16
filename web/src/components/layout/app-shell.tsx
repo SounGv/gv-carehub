@@ -5,7 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
-import { LayoutDashboard, FileBarChart, PackageSearch, PackageX, Truck, Menu, X, Pencil, Check, Link2 } from 'lucide-react';
+import { LayoutDashboard, FileBarChart, PackageSearch, PackageX, Truck, Menu, X, Pencil, Check, Link2, Hash } from 'lucide-react';
+import { gvApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
 
@@ -54,6 +55,38 @@ function CopyClaimLinkButton() {
     >
       {copied ? <Check className="h-4 w-4 flex-none text-brand-lime" /> : <Link2 className="h-4 w-4 flex-none" />}
       คัดลอกลิงก์แจ้งเคลม
+    </button>
+  );
+}
+
+function ReserveClaimNoButton({ actor }: { actor: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleReserve() {
+    setLoading(true);
+    try {
+      const res = await gvApi.reserveClaimNo(actor);
+      try {
+        await navigator.clipboard.writeText(res.claim_no);
+      } catch {
+        // Clipboard is a nicety here — the number is already shown in the toast.
+      }
+      toast.success(`ได้เลข ${res.claim_no} แล้ว (คัดลอกไว้ให้ด้วย) ใช้เลขนี้พิมพ์ลงชีตได้เลย ไม่ชนกับใคร`, { duration: 8000 });
+    } catch {
+      toast.error('ขอเลขไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleReserve}
+      disabled={loading}
+      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 disabled:opacity-50"
+    >
+      <Hash className="h-4 w-4 flex-none" />
+      {loading ? 'กำลังขอเลข...' : 'ขอเลขเคสถัดไป'}
     </button>
   );
 }
@@ -142,6 +175,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <NavGroup group={WAREHOUSE_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
+
+          <div>
+            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">เครื่องมือ</div>
+            <div className="flex flex-col gap-1">
+              <ReserveClaimNoButton actor={session.name} />
+            </div>
+          </div>
         </nav>
 
         <div className="mt-auto space-y-1.5 border-t border-white/10 pt-4">
