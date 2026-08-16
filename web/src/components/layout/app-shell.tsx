@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
-import { LayoutDashboard, FileBarChart, PackageSearch, Truck, Menu, X, Pencil, Check, Link2, Hash } from 'lucide-react';
+import { LayoutDashboard, FileText, PackageSearch, Truck, Boxes, FileBarChart, Menu, X, Pencil, Check, Link2, Hash } from 'lucide-react';
 import { gvApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
@@ -16,19 +16,23 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const OVERVIEW_GROUP: { title: string; items: NavItem[] } = {
-  title: 'ภาพรวม',
+/** Grouped to mirror the target reference layout's workflow stages, reusing
+ * the pages/tabs that already exist rather than adding new routes. */
+const CLAIMS_GROUP: { title: string; items: NavItem[] } = {
+  title: 'งานเคลม',
   items: [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/reports', label: 'รายงาน', icon: FileBarChart },
+    { href: '/admin/reports?tab=claims', label: 'เคสเคลม', icon: FileText },
+    { href: '/staff/receive', label: 'รับเข้าคลัง', icon: PackageSearch },
+    { href: '/staff/ship', label: 'จัดส่งคืน', icon: Truck },
   ],
 };
 
-const WAREHOUSE_GROUP: { title: string; items: NavItem[] } = {
-  title: 'คลังสินค้า',
+const DATA_GROUP: { title: string; items: NavItem[] } = {
+  title: 'ข้อมูล & รายงาน',
   items: [
-    { href: '/staff/receive', label: 'รับพัสดุ / สแกน', icon: PackageSearch },
-    { href: '/staff/ship', label: 'ยืนยันจัดส่งคืน', icon: Truck },
+    { href: '/admin/reports?tab=sku', label: 'สินค้า & SKU', icon: Boxes },
+    { href: '/admin/reports?tab=service_log', label: 'รายงาน', icon: FileBarChart },
   ],
 };
 
@@ -53,7 +57,7 @@ function CopyClaimLinkButton() {
       className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10"
     >
       {copied ? <Check className="h-4 w-4 flex-none text-brand-lime" /> : <Link2 className="h-4 w-4 flex-none" />}
-      คัดลอกลิงก์แจ้งเคลม
+      แจ้งเคลม / ส่งลิงก์
     </button>
   );
 }
@@ -104,7 +108,8 @@ function NavGroup({
       <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">{group.title}</div>
       <div className="flex flex-col gap-1">
         {group.items.map((item) => {
-          const active = pathname?.startsWith(item.href);
+          const hrefPath = item.href.split('?')[0] ?? item.href;
+          const active = pathname === hrefPath || (hrefPath !== '/admin/dashboard' && pathname?.startsWith(hrefPath));
           const Icon = item.icon;
           return (
             <Link
@@ -150,12 +155,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Image src="/gv-logo-icon.png" alt="Gadget Villa" width={36} height={36} className="rounded-lg object-cover" />
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <Image src="/gv-logo-icon.png" alt="Gadget Villa" width={44} height={44} className="rounded-xl object-cover" />
             <div>
-              <div className="text-[19px] font-bold leading-tight">Gadget Villa</div>
-              <div className="text-[11px] leading-tight text-brand-lime-soft">GV CareHub</div>
+              <div className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-white/70">Gadget Villa</div>
+              <div className="text-[19px] font-bold leading-tight text-brand-lime">GV CareHub</div>
+              <div className="text-[10.5px] leading-tight text-white/50">After-sales Claims Management</div>
             </div>
           </div>
           <button onClick={() => setOpen(false)} className="text-white/70 md:hidden">
@@ -164,7 +170,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-6">
-          <NavGroup group={OVERVIEW_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
+          <NavGroup group={CLAIMS_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
 
           <div>
             <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">ลูกค้า</div>
@@ -173,7 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <NavGroup group={WAREHOUSE_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
+          <NavGroup group={DATA_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
 
           <div>
             <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">เครื่องมือ</div>
