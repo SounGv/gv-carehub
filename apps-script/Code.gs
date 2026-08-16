@@ -553,6 +553,7 @@ function claimReport_(p) {
       claim_no: i.claim_no,
       customer_name: c.customer_name || '', phone: c.phone || '', channel: c.channel || '', order_no: c.order_no || '',
       sku: i.sku || '', product_name: i.product_name || prod.product_name || '', model: i.model || prod.model || '', brand: prod.brand || '',
+      serial_no: i.serial_no || '',
       issue_group: i.issue_group || '', issue_detail: i.issue_detail || '',
       submitted_at: c.submitted_at || '', received_at: c.received_at || '',
       inbound_carrier: inbound ? (inbound.carrier || '') : '', inbound_tracking_no: inbound ? (inbound.tracking_no || '') : '',

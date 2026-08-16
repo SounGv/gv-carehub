@@ -7,7 +7,7 @@ import { gvApi, type ReportFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { FilterBar, FilterField } from '@/components/ui/filter-bar';
-import { Select } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,18 +83,16 @@ export default function AdminReportsPage() {
       <form onSubmit={handleSearch}>
         <FilterBar>
           <FilterField label="วันที่เริ่มต้น">
-            <input
+            <Input
               type="date"
-              className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
               value={draft.from}
               max={draft.to}
               onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))}
             />
           </FilterField>
           <FilterField label="วันที่สิ้นสุด">
-            <input
+            <Input
               type="date"
-              className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
               value={draft.to}
               min={draft.from}
               onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))}

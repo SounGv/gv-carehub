@@ -253,6 +253,7 @@ export interface ClaimReportRow {
   product_name: string;
   model: string;
   brand: string;
+  serial_no: string;
   issue_group: string;
   issue_detail: string;
   submitted_at: string;

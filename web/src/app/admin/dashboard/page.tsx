@@ -24,7 +24,7 @@ import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { DailyClaimsChart, MonthlyTrendChart, RankedBarChart, StatusWorkflowChart } from '@/components/dashboard/charts';
 import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
-import { Select } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/formatters';
@@ -87,18 +87,16 @@ export default function AdminDashboardPage() {
 
       <FilterBar>
         <FilterField label="วันที่เริ่มต้น">
-          <input
+          <Input
             type="date"
-            className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
             value={filters.from}
             max={filters.to}
             onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))}
           />
         </FilterField>
         <FilterField label="วันที่สิ้นสุด">
-          <input
+          <Input
             type="date"
-            className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
             value={filters.to}
             min={filters.from}
             onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}

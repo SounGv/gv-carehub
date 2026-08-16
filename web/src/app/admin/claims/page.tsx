@@ -7,11 +7,10 @@ import { gvApi, type ClaimReportFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
-import { RankedBarChart, StatusWorkflowChart } from '@/components/dashboard/charts';
+import { StatusBadge } from '@/components/claims/status-badge';
 import { FilterBar, FilterField } from '@/components/ui/filter-bar';
-import { Select } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState, ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
 import { formatCurrency, formatThaiDate, formatThaiDateTime } from '@/lib/formatters';
@@ -34,30 +33,69 @@ const EMPTY_FILTERS: ClaimReportFilters = {
   resolution_method: '',
 };
 
-const COLUMNS: { key: keyof ClaimReportRow; label: string }[] = [
-  { key: 'claim_no', label: 'เลขเคส' },
-  { key: 'customer_name', label: 'ชื่อลูกค้า' },
-  { key: 'phone', label: 'เบอร์โทร' },
-  { key: 'channel', label: 'ช่องทาง' },
-  { key: 'sku', label: 'SKU' },
-  { key: 'product_name', label: 'ชื่อสินค้า' },
-  { key: 'model', label: 'รุ่น' },
-  { key: 'issue_group', label: 'กลุ่มอาการเสีย' },
-  { key: 'issue_detail', label: 'รายละเอียดอาการเสีย' },
-  { key: 'submitted_at', label: 'วันที่แจ้งเคลม' },
-  { key: 'received_at', label: 'วันที่รับเข้าคลัง' },
-  { key: 'inbound_carrier', label: 'ขนส่งขาเข้า' },
-  { key: 'inbound_tracking_no', label: 'เลขพัสดุขาเข้า' },
-  { key: 'warranty_type', label: 'ประเภทประกัน' },
-  { key: 'resolution_method', label: 'วิธีแก้ไข' },
-  { key: 'inspection_result', label: 'ผลตรวจสอบ' },
-  { key: 'repair_cost', label: 'ค่าใช้จ่าย' },
-  { key: 'outbound_carrier', label: 'ขนส่งขาออก' },
-  { key: 'outbound_tracking_no', label: 'เลขพัสดุขาออก' },
-  { key: 'shipped_at', label: 'วันที่ส่งคืน' },
-  { key: 'status', label: 'สถานะ' },
+/** Column groups mirror how RMA/warranty systems lay out case detail: identity, product,
+ * issue, timeline, logistics, resolution — one wide, real data table, not an aggregate. */
+const COLUMN_GROUPS: { title: string; columns: { key: keyof ClaimReportRow; label: string }[] }[] = [
+  {
+    title: 'เคสและลูกค้า',
+    columns: [
+      { key: 'claim_no', label: 'เลขเคส' },
+      { key: 'customer_name', label: 'ชื่อลูกค้า' },
+      { key: 'phone', label: 'เบอร์โทร' },
+      { key: 'channel', label: 'ช่องทาง' },
+      { key: 'order_no', label: 'เลขคำสั่งซื้อ' },
+    ],
+  },
+  {
+    title: 'สินค้า',
+    columns: [
+      { key: 'sku', label: 'SKU' },
+      { key: 'product_name', label: 'ชื่อสินค้า' },
+      { key: 'model', label: 'รุ่น' },
+      { key: 'brand', label: 'แบรนด์' },
+      { key: 'serial_no', label: 'Serial Number' },
+    ],
+  },
+  {
+    title: 'อาการเสีย',
+    columns: [
+      { key: 'issue_group', label: 'กลุ่มอาการเสีย' },
+      { key: 'issue_detail', label: 'รายละเอียดอาการเสีย' },
+    ],
+  },
+  {
+    title: 'ไทม์ไลน์',
+    columns: [
+      { key: 'submitted_at', label: 'วันที่แจ้งเคลม' },
+      { key: 'received_at', label: 'วันที่รับเข้าคลัง' },
+      { key: 'shipped_at', label: 'วันที่ส่งคืน' },
+    ],
+  },
+  {
+    title: 'การขนส่ง',
+    columns: [
+      { key: 'inbound_carrier', label: 'ขนส่งขาเข้า' },
+      { key: 'inbound_tracking_no', label: 'เลขพัสดุขาเข้า' },
+      { key: 'outbound_carrier', label: 'ขนส่งขาออก' },
+      { key: 'outbound_tracking_no', label: 'เลขพัสดุขาออก' },
+    ],
+  },
+  {
+    title: 'การแก้ไข',
+    columns: [
+      { key: 'warranty_type', label: 'ประเภทประกัน' },
+      { key: 'resolution_method', label: 'วิธีแก้ไข' },
+      { key: 'inspection_result', label: 'ผลตรวจสอบ' },
+      { key: 'repair_cost', label: 'ค่าใช้จ่าย' },
+    ],
+  },
+  {
+    title: 'สถานะ',
+    columns: [{ key: 'status', label: 'สถานะ' }],
+  },
 ];
 
+const COLUMNS = COLUMN_GROUPS.flatMap((g) => g.columns);
 const NUMERIC_KEYS = new Set(['repair_cost']);
 const SHIPPED_STATUSES = ['จัดส่งแล้ว', 'ปิดเคส'];
 
@@ -85,39 +123,22 @@ export default function AdminClaimsReportPage() {
   }, [report.data]);
   const notShippedCount = report.data ? report.data.summary.total_cases - shippedCount : 0;
 
-  const resolutionRows = useMemo(
-    () => Object.entries(report.data?.summary.by_resolution_method ?? {}).map(([label, count]) => ({ label, count })),
-    [report.data],
-  );
-
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-brand-charcoal">รายงานเคลม</h1>
         <p className="text-sm text-slate-500">
-          รายละเอียดเคลมทุกเคส — ใครส่งมา สินค้าอะไร เสียอะไร รับ/ส่งคืนวันไหน แก้ไขด้วยวิธีไหน ตามช่วงเวลาที่เลือก
+          ข้อมูลจริงรายเคส — สินค้า อาการเสีย ซีเรียล วันที่รับ/ส่งคืน และวิธีแก้ไข ตามช่วงเวลาที่เลือก (ดูภาพรวมและกราฟที่หน้า Dashboard)
         </p>
       </div>
 
       <form onSubmit={handleSearch}>
         <FilterBar>
           <FilterField label="วันที่เริ่มต้น">
-            <input
-              type="date"
-              className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
-              value={draft.from}
-              max={draft.to}
-              onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))}
-            />
+            <Input type="date" value={draft.from} max={draft.to} onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))} />
           </FilterField>
           <FilterField label="วันที่สิ้นสุด">
-            <input
-              type="date"
-              className="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-lime"
-              value={draft.to}
-              min={draft.from}
-              onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))}
-            />
+            <Input type="date" value={draft.to} min={draft.from} onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))} />
           </FilterField>
           <FilterField label="SKU">
             <Select value={draft.sku} onChange={(e) => setDraft((f) => ({ ...f, sku: e.target.value }))}>
@@ -191,7 +212,7 @@ export default function AdminClaimsReportPage() {
       </form>
 
       {report.isLoading && !report.data && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
@@ -200,40 +221,16 @@ export default function AdminClaimsReportPage() {
       {report.error && !report.data && <ErrorState message={report.error} onRetry={report.refetch} />}
 
       {report.data && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiCard label="เคสทั้งหมดในช่วงที่เลือก" value={report.data.summary.total_cases} icon={ClipboardList} />
+          <KpiCard label="ส่งคืนแล้ว" value={shippedCount} icon={Truck} tone="good" />
+          <KpiCard label="ยังไม่ส่งคืน" value={notShippedCount} icon={Wrench} tone="warning" />
+          <KpiCard label="ค่าซ่อม/เปลี่ยนรวม" value={report.data.summary.total_repair_cost} icon={Coins} isCurrency tone="warning" />
+        </div>
+      )}
+
+      {report.data && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <KpiCard label="เคสทั้งหมดในช่วงที่เลือก" value={report.data.summary.total_cases} icon={ClipboardList} />
-            <KpiCard label="ส่งคืนแล้ว" value={shippedCount} icon={Truck} tone="good" />
-            <KpiCard label="ยังไม่ส่งคืน" value={notShippedCount} icon={Wrench} tone="warning" />
-            <KpiCard label="ค่าซ่อม/เปลี่ยนรวม" value={report.data.summary.total_repair_cost} icon={Coins} isCurrency tone="warning" />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>สรุปตามสถานะ</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <StatusWorkflowChart data={report.data.summary.by_status} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>สรุปวิธีแก้ไข (ซ่อม / เปลี่ยนใหม่ / คืนเงิน ฯลฯ)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RankedBarChart
-                  data={resolutionRows}
-                  labelKey="label"
-                  valueKey="count"
-                  valueLabel="จำนวนเคส"
-                  emptyTitle="ยังไม่มีการบันทึกวิธีแก้ไขในช่วงที่เลือก"
-                />
-              </CardContent>
-            </Card>
-          </div>
-
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-slate-400">
               {report.lastUpdatedAt && `อัปเดตล่าสุด ${formatThaiDateTime(report.lastUpdatedAt)}`}
@@ -261,6 +258,17 @@ export default function AdminClaimsReportPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {COLUMN_GROUPS.map((g) => (
+                    <TableHead
+                      key={g.title}
+                      colSpan={g.columns.length}
+                      className="border-b border-border bg-slate-100/70 text-center text-[10px] tracking-wider text-slate-400"
+                    >
+                      {g.title}
+                    </TableHead>
+                  ))}
+                </TableRow>
+                <TableRow>
                   {COLUMNS.map((c) => (
                     <TableHead key={String(c.key)} className={NUMERIC_KEYS.has(String(c.key)) ? 'text-right' : ''}>
                       {c.label}
@@ -275,27 +283,32 @@ export default function AdminClaimsReportPage() {
                     <TableCell>{row.customer_name || '-'}</TableCell>
                     <TableCell>{row.phone || '-'}</TableCell>
                     <TableCell>{row.channel || '-'}</TableCell>
+                    <TableCell>{row.order_no || '-'}</TableCell>
                     <TableCell>{row.sku || '-'}</TableCell>
                     <TableCell>{row.product_name || '-'}</TableCell>
                     <TableCell>{row.model || '-'}</TableCell>
+                    <TableCell>{row.brand || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.serial_no || '-'}</TableCell>
                     <TableCell>{row.issue_group || '-'}</TableCell>
-                    <TableCell className="max-w-[220px] truncate" title={row.issue_detail}>
+                    <TableCell className="max-w-[240px] truncate" title={row.issue_detail}>
                       {row.issue_detail || '-'}
                     </TableCell>
                     <TableCell>{formatThaiDate(row.submitted_at)}</TableCell>
                     <TableCell>{row.received_at ? formatThaiDate(row.received_at) : '-'}</TableCell>
+                    <TableCell>{row.shipped_at ? formatThaiDate(row.shipped_at) : '-'}</TableCell>
                     <TableCell>{row.inbound_carrier || '-'}</TableCell>
                     <TableCell>{row.inbound_tracking_no || '-'}</TableCell>
+                    <TableCell>{row.outbound_carrier || '-'}</TableCell>
+                    <TableCell>{row.outbound_tracking_no || '-'}</TableCell>
                     <TableCell>{row.warranty_type || '-'}</TableCell>
                     <TableCell>{row.resolution_method || '-'}</TableCell>
                     <TableCell className="max-w-[220px] truncate" title={row.inspection_result}>
                       {row.inspection_result || '-'}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(row.repair_cost)}</TableCell>
-                    <TableCell>{row.outbound_carrier || '-'}</TableCell>
-                    <TableCell>{row.outbound_tracking_no || '-'}</TableCell>
-                    <TableCell>{row.shipped_at ? formatThaiDate(row.shipped_at) : '-'}</TableCell>
-                    <TableCell>{row.status || '-'}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={row.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

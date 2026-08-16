@@ -103,7 +103,7 @@ function NavGroup({
 }) {
   return (
     <div>
-      <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">{group.title}</div>
+      <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">{group.title}</div>
       <div className="flex flex-col gap-1">
         {group.items.map((item) => {
           const active = pathname?.startsWith(item.href);
@@ -157,7 +157,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Image src="/gv-logo-icon.png" alt="Gadget Villa" width={36} height={36} className="rounded-lg object-cover" />
             <div>
               <div className="text-[19px] font-bold leading-tight">Gadget Villa</div>
-              <div className="text-[11px] leading-tight text-[#c7cf6e]">GV CareHub</div>
+              <div className="text-[11px] leading-tight text-brand-lime-soft">GV CareHub</div>
             </div>
           </div>
           <button onClick={() => setOpen(false)} className="text-white/70 md:hidden">
@@ -169,7 +169,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavGroup group={OVERVIEW_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
 
           <div>
-            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">ลูกค้า</div>
+            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">ลูกค้า</div>
             <div className="flex flex-col gap-1">
               <CopyClaimLinkButton />
             </div>
@@ -178,7 +178,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavGroup group={WAREHOUSE_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
 
           <div>
-            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5c85b8]">เครื่องมือ</div>
+            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">เครื่องมือ</div>
             <div className="flex flex-col gap-1">
               <ReserveClaimNoButton actor={session.name} />
             </div>

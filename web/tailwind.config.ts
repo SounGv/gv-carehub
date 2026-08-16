@@ -9,7 +9,9 @@ const config: Config = {
         brand: {
           lime: '#C4D600',
           'lime-dark': '#9AA600',
+          'lime-soft': '#C7CF6E',
           charcoal: '#221E1A',
+          steel: '#5C85B8',
         },
         background: '#F4F6F9',
         foreground: '#1F2937',
