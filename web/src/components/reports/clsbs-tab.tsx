@@ -13,8 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
+import { ExportModeToggle, type ExportMode } from '@/components/reports/export-mode-toggle';
 import { formatCurrency, formatNumber, formatThaiDateTime } from '@/lib/formatters';
-import { exportCsv, exportExcel } from '@/lib/export';
+import { exportCsv, exportExcel, exportSummaryExcel } from '@/lib/export';
 import type { LegacyClsbsRow } from '@/lib/types';
 
 const PAGE_SIZE = 50;
@@ -91,6 +92,7 @@ export function ClsbsTab() {
   const [draft, setDraft] = useState(EMPTY_CLSBS_FILTERS);
   const [applied, setApplied] = useState(EMPTY_CLSBS_FILTERS);
   const [page, setPage] = useState(1);
+  const [exportMode, setExportMode] = useState<ExportMode>('detail');
   const result = useAsync(() => gvApi.legacyClsbsRows({ ...applied, page: String(page), page_size: String(PAGE_SIZE) }), [applied, page]);
 
   function handleSearch(e: React.FormEvent) {
@@ -106,6 +108,34 @@ export function ClsbsTab() {
   }
 
   const rows = useMemo(() => result.data?.rows ?? [], [result.data]);
+
+  function handleExportExcel() {
+    if (exportMode === 'detail') {
+      exportExcel(rows, CLSBS_COLUMNS, 'gv-carehub-clsbs', 'CLSBS');
+      return;
+    }
+    if (!legacy.data) return;
+    const c = legacy.data.clsbs;
+    exportSummaryExcel(
+      [
+        { name: 'อาการเสียยอดนิยม', rows: c.top_symptoms, columns: [{ key: 'label', label: 'อาการเสีย' }, { key: 'count', label: 'จำนวนครั้ง' }] },
+        { name: 'ตามแบรนด์', rows: c.by_brand, columns: [{ key: 'label', label: 'แบรนด์' }, { key: 'count', label: 'จำนวนครั้ง' }] },
+        { name: 'ตามกลุ่มสินค้า', rows: c.by_product_group, columns: [{ key: 'label', label: 'กลุ่มสินค้า' }, { key: 'count', label: 'จำนวนครั้ง' }] },
+        {
+          name: 'สรุปการเงิน',
+          rows: [
+            { label: 'รายการสะสม', value: c.total_records },
+            { label: 'จ่ายให้ผู้จำหน่าย (บาท)', value: c.money.paid_to_vendor },
+            { label: 'ได้รับจากผู้จำหน่าย (บาท)', value: c.money.received_from_vendor },
+            { label: 'เรียกเก็บจากลูกค้า (บาท)', value: c.money.charged_to_customer },
+            { label: 'คืนให้ลูกค้า (บาท)', value: c.money.refunded_to_customer },
+          ],
+          columns: [{ key: 'label', label: 'รายการ' }, { key: 'value', label: 'ค่า' }],
+        },
+      ],
+      'gv-carehub-clsbs-summary',
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -230,12 +260,20 @@ export function ClsbsTab() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Pagination page={result.data.page} totalCount={result.data.total_count} onChange={setPage} />
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportCsv(rows, CLSBS_COLUMNS, 'gv-carehub-clsbs')}>
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportModeToggle mode={exportMode} onChange={setExportMode} />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!rows.length || exportMode === 'summary'}
+                title={exportMode === 'summary' ? 'สรุปยอดรวมมีหลายตารางย่อย ใช้ Export Excel แทน' : undefined}
+                onClick={() => exportCsv(rows, CLSBS_COLUMNS, 'gv-carehub-clsbs')}
+              >
                 <Download className="h-3.5 w-3.5" /> Export หน้านี้ ({rows.length})
               </Button>
-              <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportExcel(rows, CLSBS_COLUMNS, 'gv-carehub-clsbs', 'CLSBS')}>
-                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel หน้านี้
+              <Button type="button" variant="outline" size="sm" disabled={exportMode === 'detail' ? !rows.length : !legacy.data} onClick={handleExportExcel}>
+                <FileSpreadsheet className="h-3.5 w-3.5" /> {exportMode === 'detail' ? 'Excel หน้านี้' : 'Excel สรุปทั้งหมด'}
               </Button>
             </div>
           </div>

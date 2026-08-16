@@ -13,8 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
+import { ExportModeToggle, type ExportMode } from '@/components/reports/export-mode-toggle';
 import { formatCurrency, formatNumber, formatThaiDate, formatThaiDateTime } from '@/lib/formatters';
-import { exportCsv, exportExcel } from '@/lib/export';
+import { exportCsv, exportExcel, exportSummaryExcel } from '@/lib/export';
 import type { LegacyServiceLogRow } from '@/lib/types';
 
 const PAGE_SIZE = 50;
@@ -87,6 +88,7 @@ export function ServiceLogTab() {
   const [draft, setDraft] = useState(EMPTY_SERVICE_FILTERS);
   const [applied, setApplied] = useState(EMPTY_SERVICE_FILTERS);
   const [page, setPage] = useState(1);
+  const [exportMode, setExportMode] = useState<ExportMode>('detail');
   const result = useAsync(
     () => gvApi.legacyServiceLogRows({ ...applied, page: String(page), page_size: String(PAGE_SIZE) }),
     [applied, page],
@@ -105,6 +107,25 @@ export function ServiceLogTab() {
   }
 
   const rows = useMemo(() => result.data?.rows ?? [], [result.data]);
+
+  function handleExportExcel() {
+    if (exportMode === 'detail') {
+      exportExcel(rows, SERVICE_COLUMNS, 'gv-carehub-service-log', 'บริการหลังการขาย');
+      return;
+    }
+    if (!legacy.data) return;
+    const s = legacy.data.service_log;
+    exportSummaryExcel(
+      [
+        { name: 'ตามช่องทาง', rows: s.by_channel, columns: [{ key: 'label', label: 'ช่องทาง' }, { key: 'count', label: 'จำนวนเคส' }] },
+        { name: 'ตามกลุ่มปัญหา', rows: s.by_issue_group, columns: [{ key: 'label', label: 'กลุ่มปัญหา' }, { key: 'count', label: 'จำนวนเคส' }] },
+        { name: 'สินค้าที่แจ้งเคลมบ่อยสุด', rows: s.top_products, columns: [{ key: 'label', label: 'สินค้า' }, { key: 'count', label: 'จำนวนเคส' }] },
+        { name: 'รายเดือน', rows: s.by_month, columns: [{ key: 'month', label: 'เดือน' }, { key: 'count', label: 'จำนวนเคส' }] },
+        { name: 'สรุปรวม', rows: [{ label: 'เคสสะสมทั้งหมด', value: s.total_cases }], columns: [{ key: 'label', label: 'รายการ' }, { key: 'value', label: 'ค่า' }] },
+      ],
+      'gv-carehub-service-log-summary',
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -247,18 +268,20 @@ export function ServiceLogTab() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Pagination page={result.data.page} totalCount={result.data.total_count} onChange={setPage} />
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportCsv(rows, SERVICE_COLUMNS, 'gv-carehub-service-log')}>
-                <Download className="h-3.5 w-3.5" /> Export หน้านี้ ({rows.length})
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportModeToggle mode={exportMode} onChange={setExportMode} />
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!rows.length}
-                onClick={() => exportExcel(rows, SERVICE_COLUMNS, 'gv-carehub-service-log', 'บริการหลังการขาย')}
+                disabled={!rows.length || exportMode === 'summary'}
+                title={exportMode === 'summary' ? 'สรุปยอดรวมมีหลายตารางย่อย ใช้ Export Excel แทน' : undefined}
+                onClick={() => exportCsv(rows, SERVICE_COLUMNS, 'gv-carehub-service-log')}
               >
-                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel หน้านี้
+                <Download className="h-3.5 w-3.5" /> Export หน้านี้ ({rows.length})
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={exportMode === 'detail' ? !rows.length : !legacy.data} onClick={handleExportExcel}>
+                <FileSpreadsheet className="h-3.5 w-3.5" /> {exportMode === 'detail' ? 'Excel หน้านี้' : 'Excel สรุปทั้งหมด'}
               </Button>
             </div>
           </div>

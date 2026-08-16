@@ -2,19 +2,20 @@
 
 import { useMemo, useState } from 'react';
 import { format, startOfMonth } from 'date-fns';
-import { ClipboardList, Coins, Download, FileSpreadsheet, Search, Truck, Wrench, X } from 'lucide-react';
+import { ClipboardList, Coins, Download, FileSpreadsheet, Percent, Search, Truck, Wrench, X } from 'lucide-react';
 import { gvApi, type ClaimReportFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { StatusBadge } from '@/components/claims/status-badge';
+import { ExportModeToggle, type ExportMode } from '@/components/reports/export-mode-toggle';
 import { FilterBar, FilterField } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState, ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
-import { formatCurrency, formatThaiDate, formatThaiDateTime } from '@/lib/formatters';
-import { exportCsv, exportExcel } from '@/lib/export';
+import { formatCurrency, formatPercent, formatThaiDate, formatThaiDateTime } from '@/lib/formatters';
+import { exportCsv, exportExcel, exportSummaryExcel } from '@/lib/export';
 import type { ClaimReportRow } from '@/lib/types';
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
@@ -102,8 +103,15 @@ const SHIPPED_STATUSES = ['จัดส่งแล้ว', 'ปิดเคส'
 export function ClaimReportTab() {
   const [draft, setDraft] = useState<ClaimReportFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<ClaimReportFilters>(EMPTY_FILTERS);
+  const [exportMode, setExportMode] = useState<ExportMode>('detail');
   const meta = useMeta();
   const report = useAsync(() => gvApi.claimReport(applied), [applied]);
+  // Reuses the dashboard endpoint's claims-vs-sales ratio for the same date/SKU/status/channel
+  // filters, instead of adding a new backend field just for this one number.
+  const defectRate = useAsync(
+    () => gvApi.dashboard({ from: applied.from, to: applied.to, sku: applied.sku, status: applied.status, channel: applied.channel }),
+    [applied],
+  );
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -122,6 +130,48 @@ export function ClaimReportTab() {
     return SHIPPED_STATUSES.reduce((sum, s) => sum + (report.data!.summary.by_status[s] || 0), 0);
   }, [report.data]);
   const notShippedCount = report.data ? report.data.summary.total_cases - shippedCount : 0;
+
+  function handleExportExcel() {
+    if (exportMode === 'detail') {
+      exportExcel(rows, COLUMNS, 'gv-carehub-claim-report', 'Claim Report');
+      return;
+    }
+    if (!report.data) return;
+    exportSummaryExcel(
+      [
+        {
+          name: 'ตามสถานะ',
+          rows: Object.entries(report.data.summary.by_status).map(([status, count]) => ({ status, count })),
+          columns: [
+            { key: 'status', label: 'สถานะ' },
+            { key: 'count', label: 'จำนวนเคส' },
+          ],
+        },
+        {
+          name: 'ตามวิธีแก้ไข',
+          rows: Object.entries(report.data.summary.by_resolution_method).map(([method, count]) => ({ method, count })),
+          columns: [
+            { key: 'method', label: 'วิธีแก้ไข' },
+            { key: 'count', label: 'จำนวนเคส' },
+          ],
+        },
+        {
+          name: 'สรุปรวม',
+          rows: [
+            { label: 'เคสทั้งหมด', value: report.data.summary.total_cases },
+            { label: 'ส่งคืนแล้ว', value: shippedCount },
+            { label: 'ยังไม่ส่งคืน', value: notShippedCount },
+            { label: 'ค่าซ่อม/เปลี่ยนรวม (บาท)', value: report.data.summary.total_repair_cost },
+          ],
+          columns: [
+            { key: 'label', label: 'รายการ' },
+            { key: 'value', label: 'ค่า' },
+          ],
+        },
+      ],
+      'gv-carehub-claim-report-summary',
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -218,11 +268,22 @@ export function ClaimReportTab() {
       {report.error && !report.data && <ErrorState message={report.error} onRetry={report.refetch} />}
 
       {report.data && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <KpiCard label="เคสทั้งหมดในช่วงที่เลือก" value={report.data.summary.total_cases} icon={ClipboardList} />
           <KpiCard label="ส่งคืนแล้ว" value={shippedCount} icon={Truck} tone="good" />
           <KpiCard label="ยังไม่ส่งคืน" value={notShippedCount} icon={Wrench} tone="warning" />
           <KpiCard label="ค่าซ่อม/เปลี่ยนรวม" value={report.data.summary.total_repair_cost} icon={Coins} isCurrency tone="warning" />
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-white p-4 shadow-sm">
+            <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-slate-100 text-brand-charcoal">
+              <Percent className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-medium text-slate-500">อัตราเสีย (เคลม ÷ ยอดขาย)</div>
+              <div className="mt-0.5 text-xl font-bold tabular-nums text-foreground">
+                {defectRate.data ? formatPercent(defectRate.data.charts.defect_rate_vs_sales) : '-'}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -233,17 +294,19 @@ export function ClaimReportTab() {
               {report.lastUpdatedAt && `อัปเดตล่าสุด ${formatThaiDateTime(report.lastUpdatedAt)}`}
               {` · พบ ${rows.length} เคส`}
             </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={() => exportCsv(rows, COLUMNS, 'gv-carehub-claim-report')}>
-                <Download className="h-3.5 w-3.5" /> Export CSV
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportModeToggle mode={exportMode} onChange={setExportMode} />
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!rows.length}
-                onClick={() => exportExcel(rows, COLUMNS, 'gv-carehub-claim-report', 'Claim Report')}
+                disabled={!rows.length || exportMode === 'summary'}
+                title={exportMode === 'summary' ? 'สรุปยอดรวมมีหลายตารางย่อย ใช้ Export Excel แทน' : undefined}
+                onClick={() => exportCsv(rows, COLUMNS, 'gv-carehub-claim-report')}
               >
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={!rows.length} onClick={handleExportExcel}>
                 <FileSpreadsheet className="h-3.5 w-3.5" /> Export Excel
               </Button>
             </div>

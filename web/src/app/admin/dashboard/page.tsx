@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { format, subDays } from 'date-fns';
+import { differenceInCalendarDays, format, subDays } from 'date-fns';
 import {
   AlertOctagon,
   ArrowRight,
@@ -27,7 +27,7 @@ import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-ba
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, LoadingState, Skeleton } from '@/components/ui/states';
-import { formatCurrency, formatNumber, formatPercent } from '@/lib/formatters';
+import { formatCurrency, formatNumber, formatPercent, formatThaiDate } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
@@ -38,6 +38,21 @@ export default function AdminDashboardPage() {
   const meta = useMeta();
   const dashboard = useAsync(() => gvApi.dashboard(filters), [filters.from, filters.to, filters.sku, filters.status, filters.channel]);
   const legacy = useAsync(() => gvApi.legacyReport(), []);
+
+  // "10-second" comparison: same filters, the equal-length period immediately before `from`.
+  const previousFilters = useMemo<DashboardFilters>(() => {
+    const from = new Date(`${filters.from}T00:00:00`);
+    const to = new Date(`${filters.to}T00:00:00`);
+    const lengthDays = Math.max(1, differenceInCalendarDays(to, from) + 1);
+    const prevTo = subDays(from, 1);
+    const prevFrom = subDays(prevTo, lengthDays - 1);
+    return { ...filters, from: format(prevFrom, 'yyyy-MM-dd'), to: format(prevTo, 'yyyy-MM-dd') };
+  }, [filters]);
+  const previous = useAsync(
+    () => gvApi.dashboard(previousFilters),
+    [previousFilters.from, previousFilters.to, previousFilters.sku, previousFilters.status, previousFilters.channel],
+  );
+  const prevKpi = previous.data?.kpi;
 
   const topSkuRows = useMemo(
     () => (dashboard.data?.charts.top_skus_damage ?? []).map((r) => ({ ...r, label: r.product_name ? `${r.sku} · ${r.product_name}` : r.sku })),
@@ -149,16 +164,71 @@ export default function AdminDashboardPage() {
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <KpiCard label="เคลมวันนี้" value={dashboard.data.kpi.claims_today} icon={ClipboardList} />
-            <KpiCard label="รอรับสินค้า" value={dashboard.data.kpi.waiting_receive} icon={PackageSearch} tone="warning" />
-            <KpiCard label="รับเข้าคลังแล้ว" value={dashboard.data.kpi.received} icon={PackageCheck} />
-            <KpiCard label="กำลังดำเนินการ" value={dashboard.data.kpi.in_progress} icon={Wrench} />
-            <KpiCard label="รอจัดส่งคืน" value={dashboard.data.kpi.waiting_ship} icon={Truck} />
-            <KpiCard label="จัดส่งแล้ว" value={dashboard.data.kpi.shipped} icon={Truck} tone="good" />
-            <KpiCard label="ปิดเคส" value={dashboard.data.kpi.closed} icon={CheckCircle2} tone="good" />
-            <KpiCard label="เคสเกิน SLA" value={dashboard.data.kpi.overdue_sla} icon={AlertOctagon} tone="critical" />
-            <KpiCard label="มูลค่าสินค้าเคลม" value={dashboard.data.kpi.product_value} icon={Wallet} isCurrency />
-            <KpiCard label="มูลค่าความเสียหาย" value={dashboard.data.kpi.damage_value} icon={Coins} isCurrency tone="warning" />
+            <KpiCard
+              label="รอรับสินค้า"
+              value={dashboard.data.kpi.waiting_receive}
+              icon={PackageSearch}
+              tone="warning"
+              delta={prevKpi && { current: dashboard.data.kpi.waiting_receive, previous: prevKpi.waiting_receive, goodWhenUp: false }}
+            />
+            <KpiCard
+              label="รับเข้าคลังแล้ว"
+              value={dashboard.data.kpi.received}
+              icon={PackageCheck}
+              delta={prevKpi && { current: dashboard.data.kpi.received, previous: prevKpi.received }}
+            />
+            <KpiCard
+              label="กำลังดำเนินการ"
+              value={dashboard.data.kpi.in_progress}
+              icon={Wrench}
+              delta={prevKpi && { current: dashboard.data.kpi.in_progress, previous: prevKpi.in_progress, goodWhenUp: false }}
+            />
+            <KpiCard
+              label="รอจัดส่งคืน"
+              value={dashboard.data.kpi.waiting_ship}
+              icon={Truck}
+              delta={prevKpi && { current: dashboard.data.kpi.waiting_ship, previous: prevKpi.waiting_ship, goodWhenUp: false }}
+            />
+            <KpiCard
+              label="จัดส่งแล้ว"
+              value={dashboard.data.kpi.shipped}
+              icon={Truck}
+              tone="good"
+              delta={prevKpi && { current: dashboard.data.kpi.shipped, previous: prevKpi.shipped }}
+            />
+            <KpiCard
+              label="ปิดเคส"
+              value={dashboard.data.kpi.closed}
+              icon={CheckCircle2}
+              tone="good"
+              delta={prevKpi && { current: dashboard.data.kpi.closed, previous: prevKpi.closed }}
+            />
+            <KpiCard
+              label="เคสเกิน SLA"
+              value={dashboard.data.kpi.overdue_sla}
+              icon={AlertOctagon}
+              tone="critical"
+              delta={prevKpi && { current: dashboard.data.kpi.overdue_sla, previous: prevKpi.overdue_sla, goodWhenUp: false }}
+            />
+            <KpiCard
+              label="มูลค่าสินค้าเคลม"
+              value={dashboard.data.kpi.product_value}
+              icon={Wallet}
+              isCurrency
+              delta={prevKpi && { current: dashboard.data.kpi.product_value, previous: prevKpi.product_value, goodWhenUp: false }}
+            />
+            <KpiCard
+              label="มูลค่าความเสียหาย"
+              value={dashboard.data.kpi.damage_value}
+              icon={Coins}
+              isCurrency
+              tone="warning"
+              delta={prevKpi && { current: dashboard.data.kpi.damage_value, previous: prevKpi.damage_value, goodWhenUp: false }}
+            />
           </div>
+          <p className="text-xs text-slate-400">
+            ลูกศรเทียบกับช่วง {formatThaiDate(previousFilters.from)} - {formatThaiDate(previousFilters.to)} (ช่วงก่อนหน้าที่มีความยาวเท่ากัน)
+          </p>
 
           <Card>
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
