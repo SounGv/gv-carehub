@@ -86,6 +86,7 @@ function doGet(e) {
     else if (action === 'legacy_clsbs_rows') result = legacyClsbsRows_(p);
     else if (action === 'legacy_meta') result = legacyMeta_();
     else if (action === 'sheet_inspect') result = sheetInspect_(p.sheet || '');
+    else if (action === 'claim_no_status') result = claimNoStatus_();
     else throw new Error('Unknown action: ' + action);
     return json_(result);
   } catch (err) {
@@ -1015,6 +1016,17 @@ function sheetInspect_(sheetName) {
   return { ok: true, sheet: sheetName, last_row: lastRow, last_col: lastCol, headers: headers, sample: sample };
 }
 
+/** Diagnostic: shows the raw inputs behind the next claim number, to verify the fix without side effects. */
+function claimNoStatus_() {
+  const cfg = configMap_();
+  return {
+    ok: true,
+    config_last_claim_number: Number(cfg.last_claim_number || 0),
+    legacy_max_claim_number: legacyMaxClaimNumber_(),
+    next_would_be: 'GV' + (Math.max(Number(cfg.last_claim_number || 0), legacyMaxClaimNumber_()) + 1)
+  };
+}
+
 /* ---------------- Claim detail (staff) ---------------- */
 
 function claimDetail_(claimNo) {
@@ -1054,6 +1066,40 @@ function validateClaim_(p) {
 
 /* ---------------- Helpers ---------------- */
 
+/**
+ * Staff sometimes hand-type a new GV number straight into the legacy
+ * "บริการหลังการขาย" sheet's (unlabeled) first column without going through
+ * reserveClaimNo_ first — that already happened once for GV25083. If this
+ * counter only trusted Config.last_claim_number it could hand that same
+ * number out again. So every call also checks the real highest number
+ * already used in the legacy sheet (cached briefly — it's tens of
+ * thousands of rows) and never returns below that, no matter which side
+ * issued the higher number.
+ */
+const LEGACY_MAX_CLAIM_NO_CACHE_KEY = 'legacy_max_claim_no_v1';
+const LEGACY_MAX_CLAIM_NO_CACHE_SECONDS = 600;
+
+function legacyMaxClaimNumber_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(LEGACY_MAX_CLAIM_NO_CACHE_KEY);
+  if (cached !== null) return Number(cached);
+  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, ['']);
+  let max = 0;
+  (cols[''] || []).forEach(function(v) {
+    const m = /(\d+)\s*$/.exec(String(v || '').trim());
+    if (m) {
+      const n = Number(m[1]);
+      if (n > max) max = n;
+    }
+  });
+  try {
+    cache.put(LEGACY_MAX_CLAIM_NO_CACHE_KEY, String(max), LEGACY_MAX_CLAIM_NO_CACHE_SECONDS);
+  } catch (e) {
+    // Non-fatal — just means the next call recomputes it.
+  }
+  return max;
+}
+
 function nextClaimNo_(ss) {
   const sh = ss.getSheetByName(SHEETS.CONFIG);
   const rows = sh.getDataRange().getValues();
@@ -1063,6 +1109,8 @@ function nextClaimNo_(ss) {
     if (r[0] === 'claim_prefix') prefix = String(r[1] || 'GV');
     if (r[0] === 'last_claim_number') last = Number(r[1] || 25082);
   });
+  const legacyMax = legacyMaxClaimNumber_();
+  if (legacyMax > last) last = legacyMax;
   const next = last + 1;
   const row = rows.findIndex(function(r) { return r[0] === 'last_claim_number'; }) + 1;
   sh.getRange(row, 2).setValue(next);
