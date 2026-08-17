@@ -118,6 +118,16 @@ export function ClaimReportTab() {
     setApplied(draft);
   }
 
+  /** Every field here is a date/dropdown (no free-text box), so there's no
+   * reason to make the user click "ค้นหา" separately — apply immediately.
+   * Without this, picking a date range and never clicking "ค้นหา" silently
+   * leaves every result unfiltered. */
+  function applyChange(patch: Partial<ClaimReportFilters>) {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    setApplied(next);
+  }
+
   function handleClear() {
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
@@ -182,13 +192,13 @@ export function ClaimReportTab() {
       <form onSubmit={handleSearch}>
         <FilterBar>
           <FilterField label="วันที่เริ่มต้น">
-            <Input type="date" value={draft.from} max={draft.to} onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))} />
+            <Input type="date" value={draft.from} max={draft.to} onChange={(e) => applyChange({ from: e.target.value })} />
           </FilterField>
           <FilterField label="วันที่สิ้นสุด">
-            <Input type="date" value={draft.to} min={draft.from} onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))} />
+            <Input type="date" value={draft.to} min={draft.from} onChange={(e) => applyChange({ to: e.target.value })} />
           </FilterField>
           <FilterField label="SKU">
-            <Select value={draft.sku} onChange={(e) => setDraft((f) => ({ ...f, sku: e.target.value }))}>
+            <Select value={draft.sku} onChange={(e) => applyChange({ sku: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.skus ?? []).map((s) => (
                 <option key={s} value={s}>
@@ -198,7 +208,7 @@ export function ClaimReportTab() {
             </Select>
           </FilterField>
           <FilterField label="รุ่นสินค้า">
-            <Select value={draft.model} onChange={(e) => setDraft((f) => ({ ...f, model: e.target.value }))}>
+            <Select value={draft.model} onChange={(e) => applyChange({ model: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.models ?? []).map((m) => (
                 <option key={m} value={m}>
@@ -208,7 +218,7 @@ export function ClaimReportTab() {
             </Select>
           </FilterField>
           <FilterField label="แบรนด์">
-            <Select value={draft.brand} onChange={(e) => setDraft((f) => ({ ...f, brand: e.target.value }))}>
+            <Select value={draft.brand} onChange={(e) => applyChange({ brand: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.brands ?? []).map((b) => (
                 <option key={b} value={b}>
@@ -218,7 +228,7 @@ export function ClaimReportTab() {
             </Select>
           </FilterField>
           <FilterField label="ช่องทาง">
-            <Select value={draft.channel} onChange={(e) => setDraft((f) => ({ ...f, channel: e.target.value }))}>
+            <Select value={draft.channel} onChange={(e) => applyChange({ channel: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.channels ?? []).map((c) => (
                 <option key={c} value={c}>
@@ -228,7 +238,7 @@ export function ClaimReportTab() {
             </Select>
           </FilterField>
           <FilterField label="สถานะ">
-            <Select value={draft.status} onChange={(e) => setDraft((f) => ({ ...f, status: e.target.value }))}>
+            <Select value={draft.status} onChange={(e) => applyChange({ status: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.statuses ?? []).map((s) => (
                 <option key={s} value={s}>
@@ -238,7 +248,7 @@ export function ClaimReportTab() {
             </Select>
           </FilterField>
           <FilterField label="วิธีแก้ไข">
-            <Select value={draft.resolution_method} onChange={(e) => setDraft((f) => ({ ...f, resolution_method: e.target.value }))}>
+            <Select value={draft.resolution_method} onChange={(e) => applyChange({ resolution_method: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {RESOLUTION_METHODS.map((r) => (
                 <option key={r} value={r}>

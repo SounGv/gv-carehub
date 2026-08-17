@@ -100,6 +100,17 @@ export function ServiceLogTab() {
     setPage(1);
   }
 
+  /** Date/dropdown filters apply immediately on change — only the free-text
+   * search box waits for the "ค้นหา" submit, since applying per keystroke
+   * would fire a request per character. Without this, picking a date range
+   * and never clicking "ค้นหา" silently leaves every result unfiltered. */
+  function applyChange(patch: Partial<LegacyServiceLogFilters>) {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    setApplied(next);
+    setPage(1);
+  }
+
   function handleClear() {
     setDraft(EMPTY_SERVICE_FILTERS);
     setApplied(EMPTY_SERVICE_FILTERS);
@@ -200,13 +211,13 @@ export function ServiceLogTab() {
       <form onSubmit={handleSearch}>
         <FilterBar>
           <FilterField label="วันที่เริ่มต้น">
-            <Input type="date" value={draft.from} onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))} />
+            <Input type="date" value={draft.from} onChange={(e) => applyChange({ from: e.target.value })} />
           </FilterField>
           <FilterField label="วันที่สิ้นสุด">
-            <Input type="date" value={draft.to} onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))} />
+            <Input type="date" value={draft.to} onChange={(e) => applyChange({ to: e.target.value })} />
           </FilterField>
           <FilterField label="ร้าน">
-            <Select value={draft.channel} onChange={(e) => setDraft((f) => ({ ...f, channel: e.target.value }))}>
+            <Select value={draft.channel} onChange={(e) => applyChange({ channel: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.channels ?? []).map((c) => (
                 <option key={c} value={c}>
@@ -216,7 +227,7 @@ export function ServiceLogTab() {
             </Select>
           </FilterField>
           <FilterField label="กลุ่มปัญหา">
-            <Select value={draft.issue_group} onChange={(e) => setDraft((f) => ({ ...f, issue_group: e.target.value }))}>
+            <Select value={draft.issue_group} onChange={(e) => applyChange({ issue_group: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.issue_groups ?? []).map((g) => (
                 <option key={g} value={g}>

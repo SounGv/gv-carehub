@@ -38,6 +38,17 @@ export function SupplierRmaCreateBatchPanel({ meta }: { meta: { brands: string[]
     setPage(1);
   }
 
+  /** Date/dropdown filters apply immediately on change — only the free-text
+   * search box waits for the "ค้นหา" submit, since applying per keystroke
+   * would fire a request per character. Without this, picking a date range
+   * and never clicking "ค้นหา" silently leaves every result unfiltered. */
+  function applyChange(patch: Partial<SupplierRmaCandidateFilters>) {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    setApplied(next);
+    setPage(1);
+  }
+
   function handleClear() {
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
@@ -98,13 +109,13 @@ export function SupplierRmaCreateBatchPanel({ meta }: { meta: { brands: string[]
       <form onSubmit={handleSearch}>
         <FilterBar>
           <FilterField label="วันที่รับซ่อมเริ่มต้น">
-            <Input type="date" value={draft.from} onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))} />
+            <Input type="date" value={draft.from} onChange={(e) => applyChange({ from: e.target.value })} />
           </FilterField>
           <FilterField label="วันที่รับซ่อมสิ้นสุด">
-            <Input type="date" value={draft.to} onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))} />
+            <Input type="date" value={draft.to} onChange={(e) => applyChange({ to: e.target.value })} />
           </FilterField>
           <FilterField label="แบรนด์">
-            <Select value={draft.brand} onChange={(e) => setDraft((f) => ({ ...f, brand: e.target.value }))}>
+            <Select value={draft.brand} onChange={(e) => applyChange({ brand: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta?.brands ?? []).map((b) => (
                 <option key={b} value={b}>
@@ -114,7 +125,7 @@ export function SupplierRmaCreateBatchPanel({ meta }: { meta: { brands: string[]
             </Select>
           </FilterField>
           <FilterField label="กลุ่มสินค้า">
-            <Select value={draft.product_group} onChange={(e) => setDraft((f) => ({ ...f, product_group: e.target.value }))}>
+            <Select value={draft.product_group} onChange={(e) => applyChange({ product_group: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta?.product_groups ?? []).map((g) => (
                 <option key={g} value={g}>

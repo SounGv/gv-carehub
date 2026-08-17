@@ -101,6 +101,17 @@ export function ClsbsTab() {
     setPage(1);
   }
 
+  /** Date/dropdown filters apply immediately on change — only the free-text
+   * search box waits for the "ค้นหา" submit, since applying per keystroke
+   * would fire a request per character. Without this, picking a date range
+   * and never clicking "ค้นหา" silently leaves every result unfiltered. */
+  function applyChange(patch: Partial<LegacyClsbsFilters>) {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    setApplied(next);
+    setPage(1);
+  }
+
   function handleClear() {
     setDraft(EMPTY_CLSBS_FILTERS);
     setApplied(EMPTY_CLSBS_FILTERS);
@@ -204,13 +215,13 @@ export function ClsbsTab() {
       <form onSubmit={handleSearch}>
         <FilterBar>
           <FilterField label="วันที่เริ่มต้น (รับซ่อม)">
-            <Input type="date" value={draft.from} onChange={(e) => setDraft((f) => ({ ...f, from: e.target.value }))} />
+            <Input type="date" value={draft.from} onChange={(e) => applyChange({ from: e.target.value })} />
           </FilterField>
           <FilterField label="วันที่สิ้นสุด (รับซ่อม)">
-            <Input type="date" value={draft.to} onChange={(e) => setDraft((f) => ({ ...f, to: e.target.value }))} />
+            <Input type="date" value={draft.to} onChange={(e) => applyChange({ to: e.target.value })} />
           </FilterField>
           <FilterField label="แบรนด์">
-            <Select value={draft.brand} onChange={(e) => setDraft((f) => ({ ...f, brand: e.target.value }))}>
+            <Select value={draft.brand} onChange={(e) => applyChange({ brand: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.brands ?? []).map((b) => (
                 <option key={b} value={b}>
@@ -220,7 +231,7 @@ export function ClsbsTab() {
             </Select>
           </FilterField>
           <FilterField label="กลุ่มสินค้า">
-            <Select value={draft.product_group} onChange={(e) => setDraft((f) => ({ ...f, product_group: e.target.value }))}>
+            <Select value={draft.product_group} onChange={(e) => applyChange({ product_group: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.product_groups ?? []).map((g) => (
                 <option key={g} value={g}>
@@ -230,7 +241,7 @@ export function ClsbsTab() {
             </Select>
           </FilterField>
           <FilterField label="สถานะ">
-            <Select value={draft.status} onChange={(e) => setDraft((f) => ({ ...f, status: e.target.value }))}>
+            <Select value={draft.status} onChange={(e) => applyChange({ status: e.target.value })}>
               <option value="">ทั้งหมด</option>
               {(meta.data?.statuses ?? []).map((s) => (
                 <option key={s} value={s}>
