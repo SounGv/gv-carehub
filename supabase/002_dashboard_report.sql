@@ -13,7 +13,8 @@ create or replace function dashboard_report(
   p_channel text default null
 ) returns json
 language plpgsql
-stable
+security definer
+set search_path = public
 as $$
 declare
   v_from timestamptz := coalesce(p_from::timestamptz, '2000-01-01'::timestamptz);
@@ -121,3 +122,9 @@ begin
   return v_result;
 end;
 $$;
+
+-- The publishable/anon key's Postgres role (anon) has no execute rights on
+-- new functions by default — this is what lets the frontend call the RPC
+-- via supabase-js while still having zero direct access to the underlying
+-- tables (customer PII stays unreachable from the public key).
+grant execute on function dashboard_report(text, text, text, text, text) to anon;

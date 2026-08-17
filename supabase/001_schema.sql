@@ -97,3 +97,12 @@ create index if not exists idx_claim_items_sku on claim_items(sku);
 create index if not exists idx_shipment_log_claim_no on shipment_log(claim_no);
 create index if not exists idx_sales_daily_date on sales_daily(sale_date);
 create index if not exists idx_sales_daily_sku on sales_daily(sku);
+
+-- Defense-in-depth: these tables hold real customer names/phones/addresses.
+-- "Automatically expose new tables" was deliberately left unchecked when
+-- creating this project, but revoke explicitly too so a future config
+-- change can't accidentally make these directly queryable via the public
+-- (anon) API key. The only sanctioned access path is the RPC functions in
+-- 002+, which are SECURITY DEFINER and return aggregates/rows they choose.
+revoke all on claims, claim_items, products, sales_daily, shipment_log, config from anon, authenticated;
+
