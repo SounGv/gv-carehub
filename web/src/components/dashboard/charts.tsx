@@ -1,7 +1,7 @@
 'use client';
 
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { CHART_BLUE, DONUT_COLORS, DONUT_OTHER_COLOR, STATUS_SEQUENTIAL_RAMP } from '@/lib/constants';
+import { BRAND_COLOR_MAP, CHART_BLUE, DONUT_COLORS, DONUT_OTHER_COLOR, STATUS_SEQUENTIAL_RAMP } from '@/lib/constants';
 import { formatNumber, formatPercent, formatThaiDate } from '@/lib/formatters';
 import { EmptyState } from '@/components/ui/states';
 import { CLAIM_STATUSES } from '@/lib/types';
@@ -113,14 +113,29 @@ export function RankedBarChart({
   );
 }
 
+/** Simple string hash so an unmapped category still gets a *stable* color across
+ * re-renders/filters — never one that shifts because its rank changed. */
+function hashToIndex(label: string, mod: number): number {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
+  return hash % mod;
+}
+
+/** Color follows the entity, never its rank: a fixed brand keeps its own color (see
+ * BRAND_COLOR_MAP), and everything else hashes to a fixed slot instead of being
+ * assigned by sort position — so filtering/re-ranking never repaints a survivor. */
+function colorForCategory(label: string): string {
+  return BRAND_COLOR_MAP[label] ?? DONUT_COLORS[hashToIndex(label, DONUT_COLORS.length)] ?? DONUT_OTHER_COLOR;
+}
+
 /**
- * Donut + legend for a ranked top-N list, brand lime leading the color set.
- * Pie/donut slices only stay legible up to a handful of categories — past
- * that, arcs become impossible to compare — so this always folds everything
- * outside the top `maxSlices` into a single "อื่นๆ" (other) slice rather
- * than rendering all of them. The legend (name, count, percentage) sits
- * beside the donut so identity is never color-alone, satisfying the
- * "needs relief" contrast warning on the darker brand-lime slice.
+ * Donut + legend for a ranked top-N list. Pie/donut slices only stay legible
+ * up to a handful of categories — past that, arcs become impossible to
+ * compare — so this always folds everything outside the top `maxSlices`
+ * into a single "อื่นๆ" (other) slice rather than rendering all of them.
+ * The legend (name, count, percentage) sits beside the donut so identity is
+ * never color-alone, satisfying the "needs relief" contrast warning on the
+ * darker brand-lime fallback slice.
  */
 export function TopNDonutChart({
   data,
@@ -141,7 +156,7 @@ export function TopNDonutChart({
   const rest = sorted.slice(maxSlices);
   const restTotal = rest.reduce((sum, r) => sum + Number(r[valueKey] || 0), 0);
   const slices = [
-    ...top.map((r, i) => ({ label: String(r[labelKey]), value: Number(r[valueKey] || 0), color: DONUT_COLORS[i % DONUT_COLORS.length] })),
+    ...top.map((r) => ({ label: String(r[labelKey]), value: Number(r[valueKey] || 0), color: colorForCategory(String(r[labelKey])) })),
     ...(restTotal > 0 ? [{ label: `อื่นๆ (${rest.length} รายการ)`, value: restTotal, color: DONUT_OTHER_COLOR }] : []),
   ];
   const total = slices.reduce((sum, s) => sum + s.value, 0);

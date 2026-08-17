@@ -54,3 +54,19 @@ export const STATUS_SEQUENTIAL_RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5
  */
 export const DONUT_COLORS = ['#9AA600', '#2a78d6', '#e34948', '#4a3aa7', '#eb6834', '#1baf7a'];
 export const DONUT_OTHER_COLOR = '#94a3b8';
+
+/**
+ * Fixed per-brand colors, matching each vendor's own real-world brand color
+ * (UGREEN green, FANTECH red, ...) so a brand reads the same color on every
+ * chart and every filter — never reassigned by rank. Any brand not listed
+ * here falls back to a deterministic hash into DONUT_COLORS (see
+ * colorForCategory in components/dashboard/charts.tsx), so it's still
+ * stable across re-renders, just not hand-picked.
+ */
+export const BRAND_COLOR_MAP: Record<string, string> = {
+  UGREEN: '#16A34A',
+  FANTECH: '#DC2626',
+  PHILIPS: '#2a78d6',
+  GOLDSPIN: '#eda100',
+  BOYA: '#4a3aa7',
+};
