@@ -1381,7 +1381,7 @@ function supplierRmaBatchDetail_(batchNo) {
   if (!batchNo) throw new Error('batch_no is required');
   const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
     CLSBS_ID_HEADER, CLSBS_BATCH_HEADER, 'Bill Number', CLSBS_VENDOR_HEADER, 'ชื่อสินค้าที่รับเคลม', 'SN ที่รับเคลม',
-    'ยี่ห้อสินค้าที่รับเคลม', 'รุ่นสินค้าที่รับเคลม', 'อาการเสีย', CLSBS_SENT_DATE_HEADER, CLSBS_RETURNED_DATE_HEADER,
+    'ยี่ห้อสินค้าที่รับเคลม', 'รุ่นสินค้าที่รับเคลม', 'อาการเสีย', 'วันที่รับซ่อม', CLSBS_SENT_DATE_HEADER, CLSBS_RETURNED_DATE_HEADER,
     CLSBS_RETURNED_SN_HEADER, CLSBS_PAID_MONEY_HEADER, CLSBS_RECEIVED_MONEY_HEADER
   ]);
   const n = cols[CLSBS_ID_HEADER].length;
@@ -1396,6 +1396,7 @@ function supplierRmaBatchDetail_(batchNo) {
       brand: String(cols['ยี่ห้อสินค้าที่รับเคลม'][idx] || ''),
       model: String(cols['รุ่นสินค้าที่รับเคลม'][idx] || ''),
       symptom: String(cols['อาการเสีย'][idx] || ''),
+      repair_date: (function() { const d = legacyParseAnyDate_(cols['วันที่รับซ่อม'][idx]); return d ? d.toISOString() : ''; })(),
       sent_date: (legacyParseAnyDate_(cols[CLSBS_SENT_DATE_HEADER][idx]) || '') && legacyParseAnyDate_(cols[CLSBS_SENT_DATE_HEADER][idx]).toISOString(),
       returned_from_vendor_date: (function() { const d = legacyParseAnyDate_(cols[CLSBS_RETURNED_DATE_HEADER][idx]); return d ? d.toISOString() : ''; })(),
       returned_sn: String(cols[CLSBS_RETURNED_SN_HEADER][idx] || ''),

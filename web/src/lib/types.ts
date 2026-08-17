@@ -450,6 +450,7 @@ export interface SupplierRmaBatchItem {
   brand: string;
   model: string;
   symptom: string;
+  repair_date: string;
   sent_date: string;
   returned_from_vendor_date: string;
   returned_sn: string;

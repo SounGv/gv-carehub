@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Save, X } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileText, Save, X } from 'lucide-react';
 import { gvApi } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { useAuth } from '@/components/layout/auth-provider';
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
 import { formatCurrency, formatNumber, formatThaiDate } from '@/lib/formatters';
+import { exportSupplierRmaBatchExcel, exportSupplierRmaBatchPdf } from '@/lib/supplier-rma-export';
 import type { SupplierRmaBatchItem } from '@/lib/types';
 
 const STATUS_OPTIONS = ['รอผลจากผู้จำหน่าย', 'ได้รับคืนบางส่วน', 'ได้รับคืนครบแล้ว', 'ปฏิเสธ'];
@@ -110,13 +111,31 @@ function BatchDetail({ batchNo, onClose }: { batchNo: string; onClose: () => voi
         </div>
         <div className="flex items-center gap-2">
           {detail.data && (
-            <Select className="h-8 w-48 text-xs" value={detail.data.status} disabled={statusSaving} onChange={(e) => handleStatusChange(e.target.value)}>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => exportSupplierRmaBatchExcel(batchNo, detail.data!.vendor, detail.data!.items)}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => exportSupplierRmaBatchPdf(batchNo, detail.data!.vendor, detail.data!.items)}
+              >
+                <FileText className="h-3.5 w-3.5" /> PDF
+              </Button>
+              <Select className="h-8 w-48 text-xs" value={detail.data.status} disabled={statusSaving} onChange={(e) => handleStatusChange(e.target.value)}>
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </>
           )}
           <Button type="button" size="sm" variant="ghost" onClick={onClose}>
             <X className="h-4 w-4" />
