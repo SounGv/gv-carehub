@@ -624,8 +624,6 @@ function dashboardReport_(p) {
     return days > slaDays;
   });
 
-  const legacyKpi = legacyDashboardKpi_(range, slaDays, today, p);
-
   const statusCounts = {};
   filtered.forEach(function(c) { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
 
@@ -669,16 +667,14 @@ function dashboardReport_(p) {
     generated_at: new Date().toISOString(),
     filters: { from: p.from || '', to: p.to || '', sku: p.sku || '', status: p.status || '', channel: p.channel || '' },
     kpi: {
-      claims_today: claimsToday.length + legacyKpi.claims_today,
-      waiting_receive: (statusCounts['รอรับสินค้า'] || 0) + legacyKpi.waiting_receive,
-      received: (statusCounts['รับเข้าคลังแล้ว'] || 0) + legacyKpi.received,
-      in_progress: (statusCounts['กำลังดำเนินการ'] || 0) + (statusCounts['รออะไหล่'] || 0) + legacyKpi.in_progress,
+      claims_today: claimsToday.length,
+      waiting_receive: statusCounts['รอรับสินค้า'] || 0,
+      received: statusCounts['รับเข้าคลังแล้ว'] || 0,
+      in_progress: (statusCounts['กำลังดำเนินการ'] || 0) + (statusCounts['รออะไหล่'] || 0),
       waiting_ship: statusCounts['รอจัดส่งคืน'] || 0,
-      shipped: (statusCounts['จัดส่งแล้ว'] || 0) + legacyKpi.shipped,
+      shipped: statusCounts['จัดส่งแล้ว'] || 0,
       closed: statusCounts['ปิดเคส'] || 0,
-      overdue_sla: overdue.length + legacyKpi.overdue_sla,
-      // The legacy sheet has no price/value columns at all (checked all 43 headers),
-      // so these two stay Claim_Master-only — there is nothing to merge in.
+      overdue_sla: overdue.length,
       product_value: Number(filtered.reduce(function(s, c) { return s + Number(c.product_value || 0); }, 0).toFixed(2)),
       damage_value: Number(filteredItems.reduce(function(s, i) { return s + Number(i.repair_cost || 0); }, 0).toFixed(2))
     },
@@ -691,60 +687,6 @@ function dashboardReport_(p) {
       defect_rate_vs_sales: salesTotal > 0 ? Number((claimedQty / salesTotal * 100).toFixed(2)) : null
     }
   };
-}
-
-/**
- * Folds the legacy "บริการหลังการขาย" sheet's counts into the dashboard's
- * KPI tiles, so the tiles reflect the whole business (25,000+ historical
- * cases) instead of just the handful of claims that have gone through the
- * new Claim_Master flow so far. The legacy sheet only tracks 3 milestone
- * checkboxes (received from customer / entered into system / returned to
- * customer) — coarser than the new system's multi-step status — so it maps
- * onto 4 of the 8 KPI buckets (waiting_receive/received/in_progress/shipped);
- * there's no legacy equivalent of "waiting_ship" or "closed" as distinct
- * steps, and no price data at all, so those stay Claim_Master-only.
- * When a status or SKU filter is active we can't reliably attribute a
- * legacy row to it (legacy has no SKU codes and a different status
- * vocabulary), so only claims_today — which the Claim_Master side also
- * computes independent of those filters — is contributed in that case.
- */
-function legacyDashboardKpi_(range, slaDays, today, p) {
-  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, [
-    'วันที่', 'ร้าน', 'ได้รับของเสียจากลูกค้า', 'ฝ่ายเคลมรับสินค้าเข้าระบบ', 'ส่งสินค้าคืนลูกค้า'
-  ]);
-  const n = cols['วันที่'].length;
-  const now = new Date();
-  const result = { claims_today: 0, waiting_receive: 0, received: 0, in_progress: 0, shipped: 0, overdue_sla: 0 };
-  const skipBuckets = !!(p.status || p.sku);
-
-  for (let i = 0; i < n; i++) {
-    const dateVal = cols['วันที่'][i];
-    const d = new Date(dateVal);
-    if (isNaN(d)) continue;
-    if (dateKey_(dateVal) === today) result.claims_today++;
-    if (skipBuckets) continue;
-    if (d < range.from || d > range.to) continue;
-    if (p.channel && String(cols['ร้าน'][i] || '').trim() !== p.channel) continue;
-
-    const receivedFromCustomer = !!cols['ได้รับของเสียจากลูกค้า'][i];
-    const receivedIntoSystem = !!cols['ฝ่ายเคลมรับสินค้าเข้าระบบ'][i];
-    const returnedToCustomer = !!cols['ส่งสินค้าคืนลูกค้า'][i];
-    const overdue = (now - d) / (1000 * 60 * 60 * 24) > slaDays;
-
-    if (returnedToCustomer) {
-      result.shipped++;
-    } else if (receivedIntoSystem) {
-      result.in_progress++;
-      if (overdue) result.overdue_sla++;
-    } else if (receivedFromCustomer) {
-      result.received++;
-      if (overdue) result.overdue_sla++;
-    } else {
-      result.waiting_receive++;
-      if (overdue) result.overdue_sla++;
-    }
-  }
-  return result;
 }
 
 /* ---------------- Legacy report (บริการหลังการขาย + CLSBS sheets) ----------------
