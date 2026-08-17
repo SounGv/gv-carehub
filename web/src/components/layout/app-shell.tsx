@@ -77,8 +77,9 @@ function ReserveClaimNoButton({ actor }: { actor: string }) {
         // Clipboard is a nicety here — the number is already shown in the toast.
       }
       toast.success(`ได้เลข ${res.claim_no} แล้ว (คัดลอกไว้ให้ด้วย) ใช้เลขนี้พิมพ์ลงชีตได้เลย ไม่ชนกับใคร`, { duration: 8000 });
-    } catch {
-      toast.error('ขอเลขไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } catch (err) {
+      console.error('reserveClaimNo failed:', err);
+      toast.error(err instanceof Error ? `ขอเลขไม่สำเร็จ: ${err.message}` : 'ขอเลขไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
