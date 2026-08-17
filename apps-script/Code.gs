@@ -1282,6 +1282,16 @@ function supplierRmaNextBatchSeq_(vendorKey, monthKey) {
   return (used.length ? Math.max.apply(null, used) : 0) + 1;
 }
 
+/**
+ * Batches the CLSBS read/write instead of one full-column scan + 3 setValue
+ * calls PER selected item (legacyFindRowById_/legacyWriteFields_'s normal
+ * single-row path). At 74 selected items that was ~74 full-column reads of
+ * 9,500+ rows each plus 222 individual cell writes — slow enough to blow
+ * past Apps Script's execution time limit partway through and leave a
+ * batch with fewer items than were actually selected. This does exactly
+ * one column read and one range write regardless of how many items are
+ * selected.
+ */
 function supplierRmaCreateBatch_(p) {
   const ids = Array.isArray(p.ids) ? p.ids.filter(function(id) { return id; }) : [];
   if (!ids.length) throw new Error('กรุณาเลือกอย่างน้อย 1 รายการ');
@@ -1294,21 +1304,48 @@ function supplierRmaCreateBatch_(p) {
     const seq = supplierRmaNextBatchSeq_(vendorKey, monthKey);
     const batchNo = RMA_BATCH_PREFIX + vendorKey + '-' + monthKey + '-' + seq;
     const now = new Date();
+
+    const sh = spreadsheet_().getSheetByName(LEGACY_CLSBS_SHEET);
+    if (!sh) throw new Error('ไม่พบชีต ' + LEGACY_CLSBS_SHEET);
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const idCol = headers.indexOf(CLSBS_ID_HEADER);
+    const batchCol = headers.indexOf(CLSBS_BATCH_HEADER);
+    const vendorCol = headers.indexOf(CLSBS_VENDOR_HEADER);
+    const sentCol = headers.indexOf(CLSBS_SENT_DATE_HEADER);
+    if (idCol < 0 || batchCol < 0 || vendorCol < 0 || sentCol < 0) {
+      throw new Error('ไม่พบคอลัมน์ที่จำเป็นในชีต ' + LEGACY_CLSBS_SHEET);
+    }
+
+    const idValues = sh.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+    const idToRowOffset = {};
+    idValues.forEach(function(r, i) { idToRowOffset[String(r[0])] = i; });
+
     const missing = [];
+    const matchedOffsets = [];
     ids.forEach(function(id) {
-      const found = legacyFindRowById_(LEGACY_CLSBS_SHEET, CLSBS_ID_HEADER, id);
-      if (!found) { missing.push(id); return; }
-      const fields = {};
-      fields[CLSBS_BATCH_HEADER] = batchNo;
-      fields[CLSBS_VENDOR_HEADER] = p.vendor;
-      fields[CLSBS_SENT_DATE_HEADER] = now;
-      legacyWriteFields_(found, fields);
+      const offset = idToRowOffset[String(id)];
+      if (offset === undefined) { missing.push(id); return; }
+      matchedOffsets.push(offset);
     });
-    if (missing.length === ids.length) throw new Error('ไม่พบรายการที่เลือกเลย (ID: ' + missing.join(', ') + ')');
+    if (!matchedOffsets.length) throw new Error('ไม่พบรายการที่เลือกเลย (ID: ' + missing.join(', ') + ')');
+
+    const minCol = Math.min(batchCol, vendorCol, sentCol);
+    const maxCol = Math.max(batchCol, vendorCol, sentCol);
+    const range = sh.getRange(2, minCol + 1, lastRow - 1, maxCol - minCol + 1);
+    const block = range.getValues();
+    matchedOffsets.forEach(function(offset) {
+      block[offset][batchCol - minCol] = batchNo;
+      block[offset][vendorCol - minCol] = p.vendor;
+      block[offset][sentCol - minCol] = now;
+    });
+    range.setValues(block);
+
     logSync_('supplier_rma_batch_create', batchNo, 'ok', JSON.stringify({
       vendor: p.vendor, item_ids: ids, missing_ids: missing, actor: p.actor || 'staff'
     }));
-    return { ok: true, batch_no: batchNo, item_count: ids.length - missing.length, missing_ids: missing };
+    return { ok: true, batch_no: batchNo, item_count: matchedOffsets.length, missing_ids: missing };
   } finally {
     lock.releaseLock();
   }
