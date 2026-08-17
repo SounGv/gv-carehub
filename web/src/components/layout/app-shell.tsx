@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { LayoutDashboard, FileText, PackageSearch, Truck, Boxes, FileBarChart, Menu, X, Pencil, Check, Link2, Hash } from 'lucide-react';
 import { gvApi } from '@/lib/api';
@@ -16,7 +16,10 @@ interface NavItem {
 }
 
 /** Grouped to mirror the target reference layout's workflow stages, reusing
- * the pages/tabs that already exist rather than adding new routes. */
+ * the pages/tabs that already exist rather than adding new routes. Several
+ * items share the same /admin/reports path with a different ?tab=, so
+ * "active" has to compare the full href (path + tab), not just the path —
+ * see isNavItemActive below. */
 const CLAIMS_GROUP: { title: string; items: NavItem[] } = {
   title: 'งานเคลม',
   items: [
@@ -93,13 +96,26 @@ function ReserveClaimNoButton({ actor }: { actor: string }) {
   );
 }
 
+/** True only if the item's own path AND (when it specifies one) its own ?tab= both match
+ * the current URL — so of several links sharing /admin/reports, only the one whose tab is
+ * actually open lights up. */
+function isNavItemActive(href: string, pathname: string | null, currentTab: string | null): boolean {
+  const [hrefPath, hrefQuery] = href.split('?');
+  if (pathname !== hrefPath) return false;
+  if (!hrefQuery) return true;
+  const wantTab = new URLSearchParams(hrefQuery).get('tab');
+  return wantTab ? currentTab === wantTab : true;
+}
+
 function NavGroup({
   group,
   pathname,
+  currentTab,
   onNavigate,
 }: {
   group: { title: string; items: NavItem[] };
   pathname: string | null;
+  currentTab: string | null;
   onNavigate: () => void;
 }) {
   return (
@@ -107,8 +123,7 @@ function NavGroup({
       <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">{group.title}</div>
       <div className="flex flex-col gap-1">
         {group.items.map((item) => {
-          const hrefPath = item.href.split('?')[0] ?? item.href;
-          const active = pathname === hrefPath || (hrefPath !== '/admin/dashboard' && pathname?.startsWith(hrefPath));
+          const active = isNavItemActive(item.href, pathname, currentTab);
           const Icon = item.icon;
           return (
             <Link
@@ -127,6 +142,25 @@ function NavGroup({
         })}
       </div>
     </div>
+  );
+}
+
+/** Reads ?tab= — needs its own Suspense boundary since useSearchParams requires one, and
+ * AppShell itself is rendered from layout.tsx (outside any page-level Suspense). */
+function MainNav({ pathname, onNavigate }: { pathname: string | null; onNavigate: () => void }) {
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get('tab');
+  return (
+    <>
+      <NavGroup group={CLAIMS_GROUP} pathname={pathname} currentTab={currentTab} onNavigate={onNavigate} />
+      <div>
+        <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">ลูกค้า</div>
+        <div className="flex flex-col gap-1">
+          <CopyClaimLinkButton />
+        </div>
+      </div>
+      <NavGroup group={DATA_GROUP} pathname={pathname} currentTab={currentTab} onNavigate={onNavigate} />
+    </>
   );
 }
 
@@ -168,16 +202,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-6">
-          <NavGroup group={CLAIMS_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
-
-          <div>
-            <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">ลูกค้า</div>
-            <div className="flex flex-col gap-1">
-              <CopyClaimLinkButton />
-            </div>
-          </div>
-
-          <NavGroup group={DATA_GROUP} pathname={pathname} onNavigate={() => setOpen(false)} />
+          <Suspense fallback={null}>
+            <MainNav pathname={pathname} onNavigate={() => setOpen(false)} />
+          </Suspense>
 
           <div>
             <div className="mb-2 px-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-steel">เครื่องมือ</div>
