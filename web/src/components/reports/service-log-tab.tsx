@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ClipboardList, Download, FileSpreadsheet, Se
 import { gvApi, type LegacyServiceLogFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { KpiCard } from '@/components/dashboard/kpi-card';
-import { MonthlyTrendChart, RankedBarChart } from '@/components/dashboard/charts';
+import { MonthlyTrendChart, TopNDonutChart } from '@/components/dashboard/charts';
 import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -165,13 +165,7 @@ export function ServiceLogTab() {
                 <CardTitle>สินค้าที่แจ้งเคลมบ่อยสุด</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart
-                  data={legacy.data.service_log.top_products}
-                  labelKey="label"
-                  valueKey="count"
-                  valueLabel="จำนวนครั้ง"
-                  emptyTitle="ไม่มีข้อมูลสินค้า"
-                />
+                <TopNDonutChart data={legacy.data.service_log.top_products} labelKey="label" valueKey="count" emptyTitle="ไม่มีข้อมูลสินค้า" />
               </CardContent>
             </Card>
             <Card>
@@ -179,13 +173,7 @@ export function ServiceLogTab() {
                 <CardTitle>ช่องทางที่แจ้งเคลมบ่อยสุด</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart
-                  data={legacy.data.service_log.by_channel}
-                  labelKey="label"
-                  valueKey="count"
-                  valueLabel="จำนวนครั้ง"
-                  emptyTitle="ไม่มีข้อมูลช่องทาง"
-                />
+                <TopNDonutChart data={legacy.data.service_log.by_channel} labelKey="label" valueKey="count" emptyTitle="ไม่มีข้อมูลช่องทาง" />
               </CardContent>
             </Card>
             <Card>
@@ -193,13 +181,7 @@ export function ServiceLogTab() {
                 <CardTitle>กลุ่มปัญหาที่พบบ่อย</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart
-                  data={legacy.data.service_log.by_issue_group}
-                  labelKey="label"
-                  valueKey="count"
-                  valueLabel="จำนวนครั้ง"
-                  emptyTitle="ไม่มีข้อมูลกลุ่มปัญหา"
-                />
+                <TopNDonutChart data={legacy.data.service_log.by_issue_group} labelKey="label" valueKey="count" emptyTitle="ไม่มีข้อมูลกลุ่มปัญหา" />
               </CardContent>
             </Card>
           </div>

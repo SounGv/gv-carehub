@@ -5,7 +5,7 @@ import { Boxes, ChevronLeft, ChevronRight, Coins, Download, FileSpreadsheet, Han
 import { gvApi, type LegacyClsbsFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { KpiCard } from '@/components/dashboard/kpi-card';
-import { RankedBarChart } from '@/components/dashboard/charts';
+import { TopNDonutChart } from '@/components/dashboard/charts';
 import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -169,7 +169,7 @@ export function ClsbsTab() {
                 <CardTitle>อาการเสียที่พบบ่อย</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart data={legacy.data.clsbs.top_symptoms} labelKey="label" valueKey="count" valueLabel="จำนวนครั้ง" emptyTitle="ไม่มีข้อมูลอาการเสีย" />
+                <TopNDonutChart data={legacy.data.clsbs.top_symptoms} labelKey="label" valueKey="count" emptyTitle="ไม่มีข้อมูลอาการเสีย" />
               </CardContent>
             </Card>
             <Card>
@@ -177,7 +177,7 @@ export function ClsbsTab() {
                 <CardTitle>แบรนด์ที่รับเคลมบ่อยสุด</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart data={legacy.data.clsbs.by_brand} labelKey="label" valueKey="count" valueLabel="จำนวนครั้ง" emptyTitle="ไม่มีข้อมูลแบรนด์" />
+                <TopNDonutChart data={legacy.data.clsbs.by_brand} labelKey="label" valueKey="count" emptyTitle="ไม่มีข้อมูลแบรนด์" />
               </CardContent>
             </Card>
             <Card>
@@ -185,7 +185,7 @@ export function ClsbsTab() {
                 <CardTitle>กลุ่มสินค้าที่รับเคลมบ่อยสุด</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart data={legacy.data.clsbs.by_product_group} labelKey="label" valueKey="count" valueLabel="จำนวนครั้ง" emptyTitle="ไม่มีข้อมูลกลุ่มสินค้า" />
+                <TopNDonutChart data={legacy.data.clsbs.by_product_group} labelKey="label" valueKey="count" emptyTitle="ไม่มีข้อมูลกลุ่มสินค้า" />
               </CardContent>
             </Card>
           </div>

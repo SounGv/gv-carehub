@@ -1,8 +1,8 @@
 'use client';
 
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { CHART_BLUE, STATUS_SEQUENTIAL_RAMP } from '@/lib/constants';
-import { formatNumber, formatThaiDate } from '@/lib/formatters';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CHART_BLUE, DONUT_COLORS, DONUT_OTHER_COLOR, STATUS_SEQUENTIAL_RAMP } from '@/lib/constants';
+import { formatNumber, formatPercent, formatThaiDate } from '@/lib/formatters';
 import { EmptyState } from '@/components/ui/states';
 import { CLAIM_STATUSES } from '@/lib/types';
 
@@ -110,5 +110,66 @@ export function RankedBarChart({
         <Bar dataKey={valueKey} fill={CHART_BLUE} radius={[0, 4, 4, 0]} maxBarSize={22} />
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+/**
+ * Donut + legend for a ranked top-N list, brand lime leading the color set.
+ * Pie/donut slices only stay legible up to a handful of categories — past
+ * that, arcs become impossible to compare — so this always folds everything
+ * outside the top `maxSlices` into a single "อื่นๆ" (other) slice rather
+ * than rendering all of them. The legend (name, count, percentage) sits
+ * beside the donut so identity is never color-alone, satisfying the
+ * "needs relief" contrast warning on the darker brand-lime slice.
+ */
+export function TopNDonutChart({
+  data,
+  labelKey,
+  valueKey,
+  emptyTitle,
+  maxSlices = 5,
+}: {
+  data: Record<string, unknown>[];
+  labelKey: string;
+  valueKey: string;
+  emptyTitle: string;
+  maxSlices?: number;
+}) {
+  if (!data.length) return <EmptyState title={emptyTitle} />;
+  const sorted = [...data].sort((a, b) => Number(b[valueKey]) - Number(a[valueKey]));
+  const top = sorted.slice(0, maxSlices);
+  const rest = sorted.slice(maxSlices);
+  const restTotal = rest.reduce((sum, r) => sum + Number(r[valueKey] || 0), 0);
+  const slices = [
+    ...top.map((r, i) => ({ label: String(r[labelKey]), value: Number(r[valueKey] || 0), color: DONUT_COLORS[i % DONUT_COLORS.length] })),
+    ...(restTotal > 0 ? [{ label: `อื่นๆ (${rest.length} รายการ)`, value: restTotal, color: DONUT_OTHER_COLOR }] : []),
+  ];
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center">
+      <ResponsiveContainer width={180} height={180} className="flex-none">
+        <PieChart>
+          <Pie data={slices} dataKey="value" nameKey="label" innerRadius={50} outerRadius={80} paddingAngle={1.5} stroke="#ffffff" strokeWidth={2}>
+            {slices.map((s) => (
+              <Cell key={s.label} fill={s.color} />
+            ))}
+          </Pie>
+          <Tooltip content={<ChartTooltip valueLabel="จำนวน" />} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex w-full flex-col gap-1.5 sm:max-w-[220px]">
+        {slices.map((s) => (
+          <div key={s.label} className="flex items-center gap-2 text-xs">
+            <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="min-w-0 flex-1 truncate text-slate-600" title={s.label}>
+              {s.label}
+            </span>
+            <span className="flex-none font-semibold tabular-nums text-foreground">{formatNumber(s.value)}</span>
+            <span className="w-12 flex-none text-right tabular-nums text-slate-400">{formatPercent(total > 0 ? (s.value / total) * 100 : 0, 0)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

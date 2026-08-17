@@ -40,3 +40,17 @@ export const CHART_STATUS = {
 };
 /** Sequential ramp (light -> dark) for the ordered claim-status workflow chart. */
 export const STATUS_SEQUENTIAL_RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#1c5cab', '#104281', '#0d366b', '#082b57'];
+
+/**
+ * Brand-anchored categorical set for donut/pie charts (identity-by-color,
+ * unlike the ranked bars above). Plain brand lime (#C4D600) fails the
+ * lightness-band check as chart-ink — too pale to read as a fill — so this
+ * leads with the darker brand shade instead, then the reference palette's
+ * validated hues in an order that clears every adjacent-pair CVD/contrast
+ * gate: `node validate_palette.js "#9AA600,#2a78d6,#e34948,#4a3aa7,#eb6834,#1baf7a"`.
+ * Contrast lands in the WARN band (2.7–2.8:1), which is only legal with
+ * direct labels next to each slice — always pair this with a visible
+ * label+value legend, never bare color.
+ */
+export const DONUT_COLORS = ['#9AA600', '#2a78d6', '#e34948', '#4a3aa7', '#eb6834', '#1baf7a'];
+export const DONUT_OTHER_COLOR = '#94a3b8';
