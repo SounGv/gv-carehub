@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { format, startOfMonth } from 'date-fns';
 import { ClipboardList, Coins, Download, FileSpreadsheet, Percent, Search, Truck, Wrench, X } from 'lucide-react';
 import { gvApi, type ClaimReportFilters } from '@/lib/api';
@@ -103,6 +104,7 @@ const SHIPPED_STATUSES = ['จัดส่งแล้ว', 'ปิดเคส'
 export function ClaimReportTab() {
   const [draft, setDraft] = useState<ClaimReportFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<ClaimReportFilters>(EMPTY_FILTERS);
+  const [query, setQuery] = useState('');
   const [exportMode, setExportMode] = useState<ExportMode>('detail');
   const meta = useMeta();
   const report = useAsync(() => gvApi.claimReport(applied), [applied]);
@@ -133,7 +135,16 @@ export function ClaimReportTab() {
     setApplied(EMPTY_FILTERS);
   }
 
-  const rows = useMemo(() => report.data?.rows ?? [], [report.data]);
+  const allRows = useMemo(() => report.data?.rows ?? [], [report.data]);
+  // Client-side only — filters the already-loaded page of rows, same identity fields
+  // gvApi.search treats as a claim match (claim_no/customer_name/phone/order_no/serial_no).
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allRows;
+    return allRows.filter((r) =>
+      [r.claim_no, r.customer_name, r.phone, r.order_no, r.serial_no].some((v) => (v ?? '').toLowerCase().includes(q)),
+    );
+  }, [allRows, query]);
 
   const shippedCount = useMemo(() => {
     if (!report.data) return 0;
@@ -300,6 +311,15 @@ export function ClaimReportTab() {
       {report.data && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-[240px] flex-1 items-center gap-2">
+              <Search className="h-4 w-4 flex-none text-slate-400" />
+              <Input
+                type="text"
+                placeholder="ค้นหา เลขเคส / ชื่อลูกค้า / เบอร์โทร / เลขคำสั่งซื้อ / Serial"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
             <div className="text-xs text-slate-400">
               {report.lastUpdatedAt && `อัปเดตล่าสุด ${formatThaiDateTime(report.lastUpdatedAt)}`}
               {` · พบ ${rows.length} เคส`}
@@ -348,8 +368,12 @@ export function ClaimReportTab() {
               </TableHeader>
               <TableBody>
                 {rows.map((row, i) => (
-                  <TableRow key={`${row.claim_no}-${i}`}>
-                    <TableCell className="font-medium">{row.claim_no}</TableCell>
+                  <TableRow key={`${row.claim_no}-${i}`} className="hover:bg-slate-50">
+                    <TableCell className="font-medium">
+                      <Link href={`/staff/claims/${row.claim_no}`} className="text-brand-charcoal underline-offset-2 hover:underline">
+                        {row.claim_no}
+                      </Link>
+                    </TableCell>
                     <TableCell>{row.customer_name || '-'}</TableCell>
                     <TableCell>{row.phone || '-'}</TableCell>
                     <TableCell>{row.channel || '-'}</TableCell>

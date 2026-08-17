@@ -220,8 +220,6 @@ function createClaim_(p) {
       ]);
     }
 
-    appendLegacyServiceLogRow_(claimNo, p, item, address, now);
-
     addHistory_(claimNo, '', status, 'customer', 'สร้างเคส');
     logSync_('create_claim', claimNo, 'ok', 'สร้างเคสใหม่ช่องทาง ' + (p.channel || ''));
     return { ok: true, claim_no: claimNo, claim_id: claimId, public_token: publicToken };
@@ -230,67 +228,16 @@ function createClaim_(p) {
   }
 }
 
-/**
- * Staff still hand-type some new cases straight into the legacy
- * "บริการหลังการขาย" sheet in parallel with customers submitting via the
- * public claim link, using their own "type the number first to reserve it"
- * convention. That convention has no shared source of truth, so it can
- * collide with the number this app hands out next. This action lets staff
- * pull the next number from the exact same locked counter createClaim_
- * uses, so there is only ever one counter in play no matter which path
- * issued it.
- */
 function reserveClaimNo_(p) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     const claimNo = nextClaimNo_(spreadsheet_());
-    logSync_('reserve_claim_no', claimNo, 'ok', 'พนักงานขอเลขไว้พิมพ์ในชีตบริการหลังการขาย (' + (p && p.actor || 'staff') + ')');
+    logSync_('reserve_claim_no', claimNo, 'ok', 'พนักงานขอเลขเคสถัดไป (' + (p && p.actor || 'staff') + ')');
     return { ok: true, claim_no: claimNo };
   } finally {
     lock.releaseLock();
   }
-}
-
-/**
- * Staff run their day-to-day work off the legacy "บริการหลังการขาย" sheet,
- * not the new Claim_Master/Claim_Items tables — a customer claim that only
- * lands in the new schema is invisible to them until someone separately
- * copies it over, which is exactly the gap that let GV25083 collide (staff
- * had no way to see the number was already spoken for). So every customer
- * submission also appends one row here, in that sheet's own real column
- * layout (read fresh, not hardcoded, since it has 40+ columns and mixed
- * survey/internal fields we never touch). Column 0 (unlabeled) is always
- * the case number; every other field is matched by exact header text and
- * anything not recognized is left blank, same as a staff member would leave
- * it until the physical receive/repair/ship steps happen later.
- */
-function appendLegacyServiceLogRow_(claimNo, p, item, address, now) {
-  const sh = spreadsheet_().getSheetByName(LEGACY_SERVICE_LOG_SHEET);
-  if (!sh) return;
-  const lastCol = sh.getLastColumn();
-  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  const row = headers.map(function(h, idx) {
-    if (idx === 0) return claimNo;
-    switch (h) {
-      case 'วันที่': return now;
-      case 'ร้าน': return p.channel || '';
-      case 'ชื่อแชทลูกค้า': return p.customer_name || '';
-      case 'ชื่อลูกค้า': return p.customer_name || '';
-      case 'เบอร์โทร': return normalizePhone_(p.phone) || '';
-      case 'ที่อยู่ส่งคืนลูกค้า': return address || '';
-      case 'เลขที่ ออเดอร์': return p.order_no || '';
-      case 'สินค้า': return item.product_name || item.sku || '';
-      case 'Serial': return item.serial_no || '';
-      case LEGACY_ISSUE_GROUP_HEADER: return item.issue_group || '';
-      case 'ปัญหา': return item.issue_detail || '';
-      case 'ได้รับของเสียจากลูกค้า': return false;
-      case 'ฝ่ายเคลมรับสินค้าเข้าระบบ': return false;
-      case 'ส่งสินค้าคืนลูกค้า': return false;
-      default: return '';
-    }
-  });
-  sh.appendRow(row);
 }
 
 function buildAddress_(a) {
@@ -355,39 +302,6 @@ function matchedFields_(claim, items, shipments, needle) {
 
 /* ---------------- Status changes ---------------- */
 
-/**
- * The website's own status buttons only ever touched Claim_Master, so a case updated via
- * /staff/claims/[claimNo] would show progress on the site while its mirror row in
- * "บริการหลังการขาย" (appendLegacyServiceLogRow_, see createClaim_) sat frozen at "not
- * received yet" forever — staff reading that sheet directly would see stale/wrong status.
- * This pushes the same transition onto the mirror row's real boolean/date columns so both
- * sides agree. Silently no-ops if the mirror row doesn't exist (cases created before this
- * sync existed, or ones that only ever lived in Claim_Master).
- */
-function syncLegacyServiceLogStatus_(claimNo, toStatus, now, extra) {
-  let found;
-  try {
-    found = legacyFindRowById_(LEGACY_SERVICE_LOG_SHEET, '', claimNo);
-  } catch (e) {
-    return; // sheet/column shape unexpected — don't fail the real status change over this
-  }
-  if (!found) return;
-  const fields = {};
-  if (toStatus === 'รับเข้าคลังแล้ว') {
-    fields['ได้รับของเสียจากลูกค้า'] = true;
-    fields['วันที่ได้รับสินค้าเสีย'] = now;
-  } else if (toStatus === 'จัดส่งแล้ว') {
-    fields['ส่งสินค้าคืนลูกค้า'] = true;
-    fields['วันที่ส่งสินค้าเคลมคืนลูกค้า'] = now;
-    if (extra && extra.tracking_no) fields['Tracking ส่งคืน'] = extra.tracking_no;
-  } else {
-    // Every other transition (กำลังดำเนินการ, รออะไหล่, ดำเนินการเสร็จ, รอจัดส่งคืน, ปิดเคส, ...)
-    // collapses onto the one further milestone the real sheet tracks.
-    fields['ฝ่ายเคลมรับสินค้าเข้าระบบ'] = true;
-  }
-  legacyWriteFields_(found, fields);
-}
-
 function updateStatus_(p, toStatus) {
   if (!p.claim_no) throw new Error('claim_no is required');
   const sh = spreadsheet_().getSheetByName(SHEETS.CLAIMS);
@@ -403,7 +317,6 @@ function updateStatus_(p, toStatus) {
   writeObject_(sh, found.row, found.obj);
   addHistory_(p.claim_no, found.old.status || '', toStatus, p.actor || 'staff', p.note || '');
   logSync_('status_change', p.claim_no, toStatus, p.note || '');
-  syncLegacyServiceLogStatus_(p.claim_no, toStatus, now, p);
   return { ok: true, claim_no: p.claim_no, status: toStatus, updated_at: now };
 }
 
@@ -711,6 +624,8 @@ function dashboardReport_(p) {
     return days > slaDays;
   });
 
+  const legacyKpi = legacyDashboardKpi_(range, slaDays, today, p);
+
   const statusCounts = {};
   filtered.forEach(function(c) { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
 
@@ -754,14 +669,16 @@ function dashboardReport_(p) {
     generated_at: new Date().toISOString(),
     filters: { from: p.from || '', to: p.to || '', sku: p.sku || '', status: p.status || '', channel: p.channel || '' },
     kpi: {
-      claims_today: claimsToday.length,
-      waiting_receive: statusCounts['รอรับสินค้า'] || 0,
-      received: statusCounts['รับเข้าคลังแล้ว'] || 0,
-      in_progress: (statusCounts['กำลังดำเนินการ'] || 0) + (statusCounts['รออะไหล่'] || 0),
+      claims_today: claimsToday.length + legacyKpi.claims_today,
+      waiting_receive: (statusCounts['รอรับสินค้า'] || 0) + legacyKpi.waiting_receive,
+      received: (statusCounts['รับเข้าคลังแล้ว'] || 0) + legacyKpi.received,
+      in_progress: (statusCounts['กำลังดำเนินการ'] || 0) + (statusCounts['รออะไหล่'] || 0) + legacyKpi.in_progress,
       waiting_ship: statusCounts['รอจัดส่งคืน'] || 0,
-      shipped: statusCounts['จัดส่งแล้ว'] || 0,
+      shipped: (statusCounts['จัดส่งแล้ว'] || 0) + legacyKpi.shipped,
       closed: statusCounts['ปิดเคส'] || 0,
-      overdue_sla: overdue.length,
+      overdue_sla: overdue.length + legacyKpi.overdue_sla,
+      // The legacy sheet has no price/value columns at all (checked all 43 headers),
+      // so these two stay Claim_Master-only — there is nothing to merge in.
       product_value: Number(filtered.reduce(function(s, c) { return s + Number(c.product_value || 0); }, 0).toFixed(2)),
       damage_value: Number(filteredItems.reduce(function(s, i) { return s + Number(i.repair_cost || 0); }, 0).toFixed(2))
     },
@@ -774,6 +691,60 @@ function dashboardReport_(p) {
       defect_rate_vs_sales: salesTotal > 0 ? Number((claimedQty / salesTotal * 100).toFixed(2)) : null
     }
   };
+}
+
+/**
+ * Folds the legacy "บริการหลังการขาย" sheet's counts into the dashboard's
+ * KPI tiles, so the tiles reflect the whole business (25,000+ historical
+ * cases) instead of just the handful of claims that have gone through the
+ * new Claim_Master flow so far. The legacy sheet only tracks 3 milestone
+ * checkboxes (received from customer / entered into system / returned to
+ * customer) — coarser than the new system's multi-step status — so it maps
+ * onto 4 of the 8 KPI buckets (waiting_receive/received/in_progress/shipped);
+ * there's no legacy equivalent of "waiting_ship" or "closed" as distinct
+ * steps, and no price data at all, so those stay Claim_Master-only.
+ * When a status or SKU filter is active we can't reliably attribute a
+ * legacy row to it (legacy has no SKU codes and a different status
+ * vocabulary), so only claims_today — which the Claim_Master side also
+ * computes independent of those filters — is contributed in that case.
+ */
+function legacyDashboardKpi_(range, slaDays, today, p) {
+  const cols = legacySheetColumns_(LEGACY_SERVICE_LOG_SHEET, [
+    'วันที่', 'ร้าน', 'ได้รับของเสียจากลูกค้า', 'ฝ่ายเคลมรับสินค้าเข้าระบบ', 'ส่งสินค้าคืนลูกค้า'
+  ]);
+  const n = cols['วันที่'].length;
+  const now = new Date();
+  const result = { claims_today: 0, waiting_receive: 0, received: 0, in_progress: 0, shipped: 0, overdue_sla: 0 };
+  const skipBuckets = !!(p.status || p.sku);
+
+  for (let i = 0; i < n; i++) {
+    const dateVal = cols['วันที่'][i];
+    const d = new Date(dateVal);
+    if (isNaN(d)) continue;
+    if (dateKey_(dateVal) === today) result.claims_today++;
+    if (skipBuckets) continue;
+    if (d < range.from || d > range.to) continue;
+    if (p.channel && String(cols['ร้าน'][i] || '').trim() !== p.channel) continue;
+
+    const receivedFromCustomer = !!cols['ได้รับของเสียจากลูกค้า'][i];
+    const receivedIntoSystem = !!cols['ฝ่ายเคลมรับสินค้าเข้าระบบ'][i];
+    const returnedToCustomer = !!cols['ส่งสินค้าคืนลูกค้า'][i];
+    const overdue = (now - d) / (1000 * 60 * 60 * 24) > slaDays;
+
+    if (returnedToCustomer) {
+      result.shipped++;
+    } else if (receivedIntoSystem) {
+      result.in_progress++;
+      if (overdue) result.overdue_sla++;
+    } else if (receivedFromCustomer) {
+      result.received++;
+      if (overdue) result.overdue_sla++;
+    } else {
+      result.waiting_receive++;
+      if (overdue) result.overdue_sla++;
+    }
+  }
+  return result;
 }
 
 /* ---------------- Legacy report (บริการหลังการขาย + CLSBS sheets) ----------------
