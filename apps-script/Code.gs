@@ -354,6 +354,39 @@ function matchedFields_(claim, items, shipments, needle) {
 
 /* ---------------- Status changes ---------------- */
 
+/**
+ * The website's own status buttons only ever touched Claim_Master, so a case updated via
+ * /staff/claims/[claimNo] would show progress on the site while its mirror row in
+ * "บริการหลังการขาย" (appendLegacyServiceLogRow_, see createClaim_) sat frozen at "not
+ * received yet" forever — staff reading that sheet directly would see stale/wrong status.
+ * This pushes the same transition onto the mirror row's real boolean/date columns so both
+ * sides agree. Silently no-ops if the mirror row doesn't exist (cases created before this
+ * sync existed, or ones that only ever lived in Claim_Master).
+ */
+function syncLegacyServiceLogStatus_(claimNo, toStatus, now, extra) {
+  let found;
+  try {
+    found = legacyFindRowById_(LEGACY_SERVICE_LOG_SHEET, '', claimNo);
+  } catch (e) {
+    return; // sheet/column shape unexpected — don't fail the real status change over this
+  }
+  if (!found) return;
+  const fields = {};
+  if (toStatus === 'รับเข้าคลังแล้ว') {
+    fields['ได้รับของเสียจากลูกค้า'] = true;
+    fields['วันที่ได้รับสินค้าเสีย'] = now;
+  } else if (toStatus === 'จัดส่งแล้ว') {
+    fields['ส่งสินค้าคืนลูกค้า'] = true;
+    fields['วันที่ส่งสินค้าเคลมคืนลูกค้า'] = now;
+    if (extra && extra.tracking_no) fields['Tracking ส่งคืน'] = extra.tracking_no;
+  } else {
+    // Every other transition (กำลังดำเนินการ, รออะไหล่, ดำเนินการเสร็จ, รอจัดส่งคืน, ปิดเคส, ...)
+    // collapses onto the one further milestone the real sheet tracks.
+    fields['ฝ่ายเคลมรับสินค้าเข้าระบบ'] = true;
+  }
+  legacyWriteFields_(found, fields);
+}
+
 function updateStatus_(p, toStatus) {
   if (!p.claim_no) throw new Error('claim_no is required');
   const sh = spreadsheet_().getSheetByName(SHEETS.CLAIMS);
@@ -369,6 +402,7 @@ function updateStatus_(p, toStatus) {
   writeObject_(sh, found.row, found.obj);
   addHistory_(p.claim_no, found.old.status || '', toStatus, p.actor || 'staff', p.note || '');
   logSync_('status_change', p.claim_no, toStatus, p.note || '');
+  syncLegacyServiceLogStatus_(p.claim_no, toStatus, now, p);
   return { ok: true, claim_no: p.claim_no, status: toStatus, updated_at: now };
 }
 
