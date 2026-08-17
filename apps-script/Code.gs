@@ -91,6 +91,7 @@ function doGet(e) {
     else if (action === 'supplier_rma_batches') result = supplierRmaBatches_(p);
     else if (action === 'supplier_rma_batch_detail') result = supplierRmaBatchDetail_(p.batch_no || '');
     else if (action === 'supplier_rma_analytics') result = supplierRmaAnalytics_();
+    else if (action === 'legacy_defect_codes') result = legacyDefectCodeDump_();
     else throw new Error('Unknown action: ' + action);
     return json_(result);
   } catch (err) {
@@ -913,6 +914,74 @@ function legacyClsbsStats_() {
       charged_to_customer: legacySum_(cols['เงินที่เรียกเก็บจากลูกค้า']),
       refunded_to_customer: legacySum_(cols['เงินที่คืนให้ลูกค้า'])
     }
+  };
+}
+
+/**
+ * Diagnostic/one-off: every distinct defect code already embedded in CLSBS's
+ * 'อาการเสีย' free-text column, for building a Thai-defect-code -> English
+ * translation dictionary. Staff already write this column as
+ * "{CODE} {English phrase}//{Thai note}" (e.g. "FM01 Film Bend//"), so this
+ * parses that existing convention instead of asking anyone to translate from
+ * scratch. Grouping happens on the extracted code, not the raw string —
+ * legacyTopCounts_ elsewhere counts raw strings, which undercounts a code
+ * whenever its Thai note varies row to row. Read-only; changes nothing.
+ */
+function legacyDefectCodeDump_() {
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, ['อาการเสีย']);
+  const raws = cols['อาการเสีย'];
+
+  const byCode = {};
+  let otherCount = 0;
+  let noCodeCount = 0;
+
+  raws.forEach(function(v) {
+    const text = String(v || '').trim();
+    if (!text) return;
+
+    const slashIdx = text.indexOf('//');
+    const beforeSlash = (slashIdx >= 0 ? text.slice(0, slashIdx) : text).trim();
+    const thaiNote = (slashIdx >= 0 ? text.slice(slashIdx + 2) : '').trim();
+
+    if (/^other\b/i.test(beforeSlash)) {
+      otherCount++;
+      return;
+    }
+
+    const m = /^([A-Za-z]+[0-9]+)\s+(.+)$/.exec(beforeSlash);
+    if (!m) {
+      noCodeCount++;
+      return;
+    }
+    const code = m[1].toUpperCase();
+    const english = m[2].trim();
+    if (!byCode[code]) byCode[code] = { englishCounts: {}, thaiSamples: [], total: 0 };
+    const bucket = byCode[code];
+    bucket.total++;
+    bucket.englishCounts[english] = (bucket.englishCounts[english] || 0) + 1;
+    if (thaiNote && bucket.thaiSamples.indexOf(thaiNote) < 0 && bucket.thaiSamples.length < 5) {
+      bucket.thaiSamples.push(thaiNote);
+    }
+  });
+
+  const codes = Object.keys(byCode).map(function(code) {
+    const bucket = byCode[code];
+    let bestEnglish = '';
+    let bestCount = -1;
+    Object.keys(bucket.englishCounts).forEach(function(e) {
+      if (bucket.englishCounts[e] > bestCount) { bestCount = bucket.englishCounts[e]; bestEnglish = e; }
+    });
+    const variants = Object.keys(bucket.englishCounts).filter(function(e) { return e !== bestEnglish; });
+    return { code: code, english: bestEnglish, count: bucket.total, english_variants: variants, thai_samples: bucket.thaiSamples };
+  }).sort(function(a, b) { return b.count - a.count; });
+
+  return {
+    ok: true,
+    total_records: raws.length,
+    distinct_codes: codes.length,
+    other_count: otherCount,
+    no_code_count: noCodeCount,
+    codes: codes
   };
 }
 
