@@ -18,9 +18,10 @@ export default function TrackClaimPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <PublicHeader subtitle="ติดตามสถานะเคลม" />
+      <PublicHeader />
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 py-8">
+        <h1 className="text-xl font-bold text-brand-charcoal">ติดตามสถานะเคลม</h1>
         {track.isLoading && <LoadingState label="กำลังตรวจสอบสถานะเคส..." />}
         {track.error && <ErrorState message={track.error} onRetry={track.refetch} />}
 
