@@ -594,7 +594,24 @@ function claimReport_(p) {
 
 /* ---------------- Dashboard ---------------- */
 
+/**
+ * Claim_Master/Claim_Items hold 25,000+ real rows since the legacy-sheet
+ * migration, so dashboardReport_ is now genuinely expensive (measured
+ * ~34s after removing the double legacy-scan bug). The admin dashboard
+ * calls this twice per view (current period + previous-period delta), and
+ * multiple staff commonly load the same default "last 30 days" view
+ * through a workday — caching the whole computed result short-term turns
+ * every repeat/concurrent view into a cache hit instead of a rescan.
+ * Cold (first-of-the-window) calls are unchanged; this doesn't help those.
+ */
+const DASHBOARD_REPORT_CACHE_SECONDS = 90;
+
 function dashboardReport_(p) {
+  const cacheKey = 'dashboard_report_v1_' + [p.from || '', p.to || '', p.sku || '', p.status || '', p.channel || ''].join('|');
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
   const range = dateRange_(p.from, p.to);
   const today = todayStr_();
   const claims = readObjects_(SHEETS.CLAIMS);
@@ -605,12 +622,21 @@ function dashboardReport_(p) {
 
   const claimsToday = claims.filter(function(c) { return dateKey_(c.submitted_at) === today; });
 
+  // Was items.some(...) run once PER claim (O(claims x items) — 625M+ comparisons
+  // at current volume) whenever a SKU filter was active. Building this lookup once
+  // makes the actual per-claim check an O(1) Set membership test instead.
+  let claimNosWithSku = null;
+  if (p.sku) {
+    claimNosWithSku = new Set();
+    items.forEach(function(i) { if (i.sku === p.sku) claimNosWithSku.add(i.claim_no); });
+  }
+
   const filtered = claims.filter(function(c) {
     const d = new Date(c.submitted_at);
     if (isNaN(d) || d < range.from || d > range.to) return false;
     if (p.status && c.status !== p.status) return false;
     if (p.channel && c.channel !== p.channel) return false;
-    if (p.sku && !items.some(function(i) { return i.claim_no === c.claim_no && i.sku === p.sku; })) return false;
+    if (claimNosWithSku && !claimNosWithSku.has(c.claim_no)) return false;
     return true;
   });
 
@@ -662,7 +688,7 @@ function dashboardReport_(p) {
   }, 0);
   const claimedQty = filteredItems.reduce(function(sum, i) { return sum + Number(i.quantity || 1); }, 0);
 
-  return {
+  const result = {
     ok: true,
     generated_at: new Date().toISOString(),
     filters: { from: p.from || '', to: p.to || '', sku: p.sku || '', status: p.status || '', channel: p.channel || '' },
@@ -687,6 +713,8 @@ function dashboardReport_(p) {
       defect_rate_vs_sales: salesTotal > 0 ? Number((claimedQty / salesTotal * 100).toFixed(2)) : null
     }
   };
+  try { cache.put(cacheKey, JSON.stringify(result), DASHBOARD_REPORT_CACHE_SECONDS); } catch (e) {}
+  return result;
 }
 
 /* ---------------- Legacy report (บริการหลังการขาย + CLSBS sheets) ----------------
