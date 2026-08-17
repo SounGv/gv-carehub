@@ -1,13 +1,13 @@
 'use client';
 
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BRAND_COLOR_MAP, CHART_BLUE, DONUT_COLORS, DONUT_OTHER_COLOR, STATUS_SEQUENTIAL_RAMP } from '@/lib/constants';
+import { BRAND_COLOR_MAP, CHART_PRIMARY, DONUT_COLORS, DONUT_OTHER_COLOR, STATUS_CHART_COLORS } from '@/lib/constants';
 import { formatNumber, formatPercent, formatThaiDate } from '@/lib/formatters';
 import { EmptyState } from '@/components/ui/states';
 import { CLAIM_STATUSES } from '@/lib/types';
 
 const GRID = '#e1e0d9';
-const AXIS_TEXT = { fill: '#898781', fontSize: 12 };
+const AXIS_TEXT = { fill: '#6b6a63', fontSize: 12 };
 
 function ChartTooltip({ active, payload, label, valueLabel }: { active?: boolean; payload?: { value: number }[]; label?: string; valueLabel?: string }) {
   if (!active || !payload?.length) return null;
@@ -28,15 +28,15 @@ export function DailyClaimsChart({ data }: { data: { date: string; count: number
       <AreaChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
         <defs>
           <linearGradient id="dailyClaimsFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CHART_BLUE} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={CHART_BLUE} stopOpacity={0.02} />
+            <stop offset="0%" stopColor={CHART_PRIMARY} stopOpacity={0.32} />
+            <stop offset="100%" stopColor={CHART_PRIMARY} stopOpacity={0.02} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
         <XAxis dataKey="date" tickFormatter={(v) => formatThaiDate(v)} tick={AXIS_TEXT} axisLine={{ stroke: GRID }} tickLine={false} minTickGap={24} />
         <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
         <Tooltip content={<ChartTooltip valueLabel="เคลม" />} labelFormatter={(v) => formatThaiDate(String(v))} />
-        <Area type="monotone" dataKey="count" stroke={CHART_BLUE} strokeWidth={2} fill="url(#dailyClaimsFill)" />
+        <Area type="monotone" dataKey="count" stroke={CHART_PRIMARY} strokeWidth={2.5} fill="url(#dailyClaimsFill)" />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -49,22 +49,29 @@ export function MonthlyTrendChart({ data }: { data: { month: string; count: numb
       <AreaChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
         <defs>
           <linearGradient id="monthlyTrendFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CHART_BLUE} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={CHART_BLUE} stopOpacity={0.02} />
+            <stop offset="0%" stopColor={CHART_PRIMARY} stopOpacity={0.32} />
+            <stop offset="100%" stopColor={CHART_PRIMARY} stopOpacity={0.02} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
-        <XAxis dataKey="month" tick={AXIS_TEXT} axisLine={{ stroke: GRID }} tickLine={false} minTickGap={16} />
+        <XAxis
+          dataKey="month"
+          tick={AXIS_TEXT}
+          axisLine={{ stroke: GRID }}
+          tickLine={false}
+          interval="preserveStartEnd"
+          minTickGap={40}
+        />
         <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} allowDecimals={false} width={40} />
         <Tooltip content={<ChartTooltip valueLabel="เคส" />} />
-        <Area type="monotone" dataKey="count" stroke={CHART_BLUE} strokeWidth={2} fill="url(#monthlyTrendFill)" />
+        <Area type="monotone" dataKey="count" stroke={CHART_PRIMARY} strokeWidth={2.5} fill="url(#monthlyTrendFill)" />
       </AreaChart>
     </ResponsiveContainer>
   );
 }
 
 export function StatusWorkflowChart({ data }: { data: Record<string, number> }) {
-  const rows = CLAIM_STATUSES.map((status, i) => ({ status, count: data[status] || 0, color: STATUS_SEQUENTIAL_RAMP[i] ?? CHART_BLUE }));
+  const rows = CLAIM_STATUSES.map((status) => ({ status, count: data[status] || 0, color: STATUS_CHART_COLORS[status] ?? CHART_PRIMARY }));
   const hasData = rows.some((r) => r.count > 0);
   if (!hasData) return <EmptyState title="ไม่มีข้อมูลสถานะในช่วงที่เลือก" />;
   return (
@@ -99,7 +106,8 @@ export function RankedBarChart({
   emptyTitle: string;
   formatValue?: (v: number) => string;
 }) {
-  if (!data.length) return <EmptyState title={emptyTitle} />;
+  const hasNonZeroValue = data.some((row) => Number(row[valueKey] ?? 0) > 0);
+  if (!data.length || !hasNonZeroValue) return <EmptyState title={emptyTitle} />;
   return (
     <ResponsiveContainer width="100%" height={Math.max(220, data.length * 34)}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 4 }} barCategoryGap={10}>
@@ -107,7 +115,7 @@ export function RankedBarChart({
         <XAxis type="number" tick={AXIS_TEXT} axisLine={false} tickLine={false} tickFormatter={(v) => (formatValue ? formatValue(v) : formatNumber(v))} />
         <YAxis type="category" dataKey={labelKey} tick={AXIS_TEXT} axisLine={false} tickLine={false} width={120} />
         <Tooltip content={<ChartTooltip valueLabel={valueLabel} />} formatter={(v: number) => (formatValue ? formatValue(v) : formatNumber(v))} />
-        <Bar dataKey={valueKey} fill={CHART_BLUE} radius={[0, 4, 4, 0]} maxBarSize={22} />
+        <Bar dataKey={valueKey} fill={CHART_PRIMARY} radius={[0, 4, 4, 0]} maxBarSize={22} />
       </BarChart>
     </ResponsiveContainer>
   );

@@ -24,22 +24,39 @@ export const STATUS_STYLES: Record<string, { bg: string; text: string; dot: stri
 export const DEFAULT_STATUS_STYLE = { bg: 'bg-slate-100', text: 'text-slate-700', dot: 'bg-slate-400' };
 
 /**
- * Chart data-ink, from the dataviz skill's validated reference palette
- * (references/palette.md) — passes contrast + CVD checks against a white
- * chart surface. Almost every dashboard chart here is a single ranked
- * measure with direct axis labels (identity carried by the label, not
- * color), so one validated hue covers it; CHART_STATUS is reserved for
- * KPI accents only, never reused as a "series color".
+ * Chart data-ink for single-series measures (line/area/ranked-bar charts).
+ * Uses the same validated dark-lime as the donut chart's lead color (see
+ * DONUT_COLORS below) instead of a generic blue, so every chart on the
+ * dashboard reads as one brand-consistent surface rather than a mix of
+ * an unrelated corporate blue and the app's actual lime/charcoal identity.
  */
-export const CHART_BLUE = '#2a78d6';
+export const CHART_PRIMARY = '#7a8a00';
 export const CHART_STATUS = {
   good: '#0ca30c',
   warning: '#fab219',
   serious: '#ec835a',
   critical: '#d03b3b',
 };
-/** Sequential ramp (light -> dark) for the ordered claim-status workflow chart. */
-export const STATUS_SEQUENTIAL_RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#1c5cab', '#104281', '#0d366b', '#082b57'];
+/**
+ * Per-status colors for the claim-status workflow chart, reusing the same
+ * semantic hue family as each status's badge in STATUS_STYLES (slate/amber/
+ * sky/blue/orange/emerald/violet/lime/neutral) — so the meaning of a color
+ * carries over from badges elsewhere in the app instead of being relearned.
+ * Mid-tone (500-weight) hexes throughout: the previous light-to-dark blue
+ * ramp put several statuses in near-white pastel tones that were nearly
+ * invisible against the chart's white background.
+ */
+export const STATUS_CHART_COLORS: Record<string, string> = {
+  แจ้งเคลมแล้ว: '#94a3b8',
+  รอรับสินค้า: '#f59e0b',
+  รับเข้าคลังแล้ว: '#0ea5e9',
+  กำลังดำเนินการ: '#3b82f6',
+  รออะไหล่: '#f97316',
+  ดำเนินการเสร็จ: '#10b981',
+  รอจัดส่งคืน: '#8b5cf6',
+  จัดส่งแล้ว: '#7a8a00',
+  ปิดเคส: '#71717a',
+};
 
 /**
  * Brand-anchored categorical set for donut/pie charts (identity-by-color,

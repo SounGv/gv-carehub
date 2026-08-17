@@ -868,8 +868,19 @@ function legacyServiceLogStats_() {
   const products = cols['สินค้า'];
   const issueGroups = cols[LEGACY_ISSUE_GROUP_HEADER];
 
+  // A handful of rows carry corrupted date cells (e.g. a stray numeric value
+  // read as a Date) that parse into implausible years like 1965 or 20025 —
+  // bounding to a real business-data range keeps those out of the monthly
+  // trend chart instead of stretching/garbling its axis. total_cases above
+  // is unaffected since it counts raw rows, not these buckets.
   const byMonth = {};
+  const minYear = 2015;
+  const maxYear = new Date().getFullYear() + 1;
   dates.forEach(function(d) {
+    const parsed = new Date(d);
+    if (isNaN(parsed)) return;
+    const y = parsed.getFullYear();
+    if (y < minYear || y > maxYear) return;
     const key = dateKey_(d).slice(0, 7); // yyyy-MM
     if (key) byMonth[key] = (byMonth[key] || 0) + 1;
   });
