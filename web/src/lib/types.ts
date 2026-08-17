@@ -401,3 +401,82 @@ export interface CreateClaimPayload {
     label_image_url?: string;
   };
 }
+
+/* ---------------- Supplier RMA (ส่งเคลมผู้ผลิต) ----------------
+ * Built directly on the legacy CLSBS sheet's own "เลขที่บิลกลุ่ม" (batch
+ * number) column — see apps-script/Code.gs's Supplier RMA section.
+ */
+
+/** A CLSBS row not yet sent to a vendor (sent-date column still empty). */
+export interface SupplierRmaCandidateRow {
+  id: string;
+  bill_number: string;
+  repair_date: string;
+  customer_name: string;
+  product_name: string;
+  serial_no: string;
+  product_group: string;
+  brand: string;
+  model: string;
+  symptom: string;
+}
+
+export interface SupplierRmaCreateBatchResult {
+  ok: true;
+  batch_no: string;
+  item_count: number;
+  missing_ids: string[];
+}
+
+export type SupplierRmaBatchStatus = 'รอผลจากผู้จำหน่าย' | 'ได้รับคืนบางส่วน' | 'ได้รับคืนครบแล้ว' | 'ปฏิเสธ' | string;
+
+export interface SupplierRmaBatchSummary {
+  batch_no: string;
+  vendor: string;
+  item_count: number;
+  sent_date: string;
+  days_since_sent: number | null;
+  overdue: boolean;
+  status: SupplierRmaBatchStatus;
+  total_paid_to_vendor: number;
+  total_received_from_vendor: number;
+}
+
+export interface SupplierRmaBatchItem {
+  id: string;
+  bill_number: string;
+  product_name: string;
+  serial_no: string;
+  brand: string;
+  model: string;
+  symptom: string;
+  sent_date: string;
+  returned_from_vendor_date: string;
+  returned_sn: string;
+  paid_to_vendor: number;
+  received_from_vendor: number;
+  reject_reason: string;
+}
+
+export interface SupplierRmaBatchDetailResponse {
+  ok: true;
+  batch_no: string;
+  vendor: string;
+  status: SupplierRmaBatchStatus;
+  items: SupplierRmaBatchItem[];
+}
+
+export interface SupplierRmaVendorStats {
+  vendor: string;
+  sent: number;
+  returned: number;
+  approval_rate: number | null;
+  unreturned_value: number;
+  avg_turnaround_days: number | null;
+}
+
+export interface SupplierRmaAnalyticsResponse {
+  ok: true;
+  by_vendor: SupplierRmaVendorStats[];
+  total_unreturned_value: number;
+}

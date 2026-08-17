@@ -7,19 +7,21 @@ import { SkuReportTab } from '@/components/reports/sku-report-tab';
 import { ClaimReportTab } from '@/components/reports/claim-report-tab';
 import { ServiceLogTab } from '@/components/reports/service-log-tab';
 import { ClsbsTab } from '@/components/reports/clsbs-tab';
+import { SupplierRmaTab } from '@/components/reports/supplier-rma-tab';
 import { LoadingState } from '@/components/ui/states';
 
-type TabKey = 'sku' | 'claims' | 'service_log' | 'clsbs';
+type TabKey = 'sku' | 'claims' | 'service_log' | 'clsbs' | 'supplier_rma';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'sku', label: 'รายงาน SKU' },
   { key: 'claims', label: 'รายงานเคลม' },
   { key: 'service_log', label: 'บริการหลังการขาย' },
   { key: 'clsbs', label: 'CLSBS' },
+  { key: 'supplier_rma', label: 'ส่งเคลมผู้ผลิต' },
 ];
 
 function isTabKey(value: string | null): value is TabKey {
-  return value === 'sku' || value === 'claims' || value === 'service_log' || value === 'clsbs';
+  return value === 'sku' || value === 'claims' || value === 'service_log' || value === 'clsbs' || value === 'supplier_rma';
 }
 
 function ReportsPageContent() {
@@ -45,6 +47,7 @@ function ReportsPageContent() {
       {tab === 'claims' && <ClaimReportTab />}
       {tab === 'service_log' && <ServiceLogTab />}
       {tab === 'clsbs' && <ClsbsTab />}
+      {tab === 'supplier_rma' && <SupplierRmaTab />}
     </div>
   );
 }

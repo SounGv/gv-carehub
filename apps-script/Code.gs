@@ -87,6 +87,10 @@ function doGet(e) {
     else if (action === 'legacy_meta') result = legacyMeta_();
     else if (action === 'sheet_inspect') result = sheetInspect_(p.sheet || '');
     else if (action === 'claim_no_status') result = claimNoStatus_();
+    else if (action === 'supplier_rma_candidates') result = supplierRmaCandidates_(p);
+    else if (action === 'supplier_rma_batches') result = supplierRmaBatches_(p);
+    else if (action === 'supplier_rma_batch_detail') result = supplierRmaBatchDetail_(p.batch_no || '');
+    else if (action === 'supplier_rma_analytics') result = supplierRmaAnalytics_();
     else throw new Error('Unknown action: ' + action);
     return json_(result);
   } catch (err) {
@@ -109,6 +113,9 @@ function doPost(e) {
     else if (action === 'update_service_detail') result = updateServiceDetail_(body);
     else if (action === 'create_pending') result = createPendingReview_(body);
     else if (action === 'upload_file') result = uploadFile_(body);
+    else if (action === 'supplier_rma_create_batch') result = supplierRmaCreateBatch_(body);
+    else if (action === 'supplier_rma_update_item') result = supplierRmaUpdateItem_(body);
+    else if (action === 'supplier_rma_update_batch_status') result = supplierRmaUpdateBatchStatus_(body);
     else throw new Error('Unknown action: ' + action);
     return json_(result);
   } catch (err) {
@@ -212,6 +219,8 @@ function createClaim_(p) {
       ]);
     }
 
+    appendLegacyServiceLogRow_(claimNo, p, item, address, now);
+
     addHistory_(claimNo, '', status, 'customer', 'สร้างเคส');
     logSync_('create_claim', claimNo, 'ok', 'สร้างเคสใหม่ช่องทาง ' + (p.channel || ''));
     return { ok: true, claim_no: claimNo, claim_id: claimId, public_token: publicToken };
@@ -240,6 +249,47 @@ function reserveClaimNo_(p) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Staff run their day-to-day work off the legacy "บริการหลังการขาย" sheet,
+ * not the new Claim_Master/Claim_Items tables — a customer claim that only
+ * lands in the new schema is invisible to them until someone separately
+ * copies it over, which is exactly the gap that let GV25083 collide (staff
+ * had no way to see the number was already spoken for). So every customer
+ * submission also appends one row here, in that sheet's own real column
+ * layout (read fresh, not hardcoded, since it has 40+ columns and mixed
+ * survey/internal fields we never touch). Column 0 (unlabeled) is always
+ * the case number; every other field is matched by exact header text and
+ * anything not recognized is left blank, same as a staff member would leave
+ * it until the physical receive/repair/ship steps happen later.
+ */
+function appendLegacyServiceLogRow_(claimNo, p, item, address, now) {
+  const sh = spreadsheet_().getSheetByName(LEGACY_SERVICE_LOG_SHEET);
+  if (!sh) return;
+  const lastCol = sh.getLastColumn();
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const row = headers.map(function(h, idx) {
+    if (idx === 0) return claimNo;
+    switch (h) {
+      case 'วันที่': return now;
+      case 'ร้าน': return p.channel || '';
+      case 'ชื่อแชทลูกค้า': return p.customer_name || '';
+      case 'ชื่อลูกค้า': return p.customer_name || '';
+      case 'เบอร์โทร': return normalizePhone_(p.phone) || '';
+      case 'ที่อยู่ส่งคืนลูกค้า': return address || '';
+      case 'เลขที่ ออเดอร์': return p.order_no || '';
+      case 'สินค้า': return item.product_name || item.sku || '';
+      case 'Serial': return item.serial_no || '';
+      case LEGACY_ISSUE_GROUP_HEADER: return item.issue_group || '';
+      case 'ปัญหา': return item.issue_detail || '';
+      case 'ได้รับของเสียจากลูกค้า': return false;
+      case 'ฝ่ายเคลมรับสินค้าเข้าระบบ': return false;
+      case 'ส่งสินค้าคืนลูกค้า': return false;
+      default: return '';
+    }
+  });
+  sh.appendRow(row);
 }
 
 function buildAddress_(a) {
@@ -928,20 +978,6 @@ function legacyServiceLogRows_(p) {
   return legacyPaginate_(rows, p);
 }
 
-/** "05 January 2026 (09:35:22)" — the only date column on this sheet reliably in one format. */
-function parseClsbsRepairDate_(v) {
-  const s = String(v || '');
-  const m = s.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})/);
-  if (!m) return null;
-  const months = {
-    January: 0, February: 1, March: 2, April: 3, May: 4, June: 5,
-    July: 6, August: 7, September: 8, October: 9, November: 10, December: 11
-  };
-  const month = months[m[2]];
-  if (month === undefined) return null;
-  return new Date(Number(m[3]), month, Number(m[1]));
-}
-
 function legacyClsbsRows_(p) {
   const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
     'ID', 'Bill Number', 'วันที่รับซ่อม', 'ชื่อลูกค้า', 'เบอร์โทรลูกค้า', 'เบอร์มือถือลูกค้า',
@@ -957,7 +993,7 @@ function legacyClsbsRows_(p) {
   for (let idx = 0; idx < n; idx++) {
     const repairDateRaw = cols['วันที่รับซ่อม'][idx];
     if (p.from || p.to) {
-      const repairDate = parseClsbsRepairDate_(repairDateRaw);
+      const repairDate = legacyParseAnyDate_(repairDateRaw);
       if (!repairDate || repairDate < range.from || repairDate > range.to) continue;
     }
     const row = {
@@ -992,11 +1028,340 @@ function legacyClsbsRows_(p) {
     rows.push(row);
   }
   rows.sort(function(a, b) {
-    const da = parseClsbsRepairDate_(a.repair_date) || new Date(0);
-    const db = parseClsbsRepairDate_(b.repair_date) || new Date(0);
+    const da = legacyParseAnyDate_(a.repair_date) || new Date(0);
+    const db = legacyParseAnyDate_(b.repair_date) || new Date(0);
     return db - da;
   });
   return legacyPaginate_(rows, p);
+}
+
+/* ---------------- Supplier RMA (ส่งเคลมผู้ผลิต) ----------------
+ * Sits entirely on top of the existing legacy CLSBS sheet — it already has
+ * a "เลขที่บิลกลุ่ม" (batch number) column, so a batch is just: write a
+ * generated RMA-{vendor}-{yyyyMM}-{seq} value into that column plus
+ * "วันที่ส่งสินค้าให้ผู้จำหน่าย" + "ชื่อผู้จำหน่าย" on every selected row.
+ * No new sheet. Explicit status overrides (e.g. "ปฏิเสธ", which can't be
+ * derived from which date columns are filled) live in Sync_Log, matched by
+ * batch_no, the same way pending_review/audit entries already do.
+ */
+
+const CLSBS_ID_HEADER = 'ID';
+const CLSBS_BATCH_HEADER = 'เลขที่บิลกลุ่ม';
+const CLSBS_VENDOR_HEADER = 'ชื่อผู้จำหน่าย';
+const CLSBS_SENT_DATE_HEADER = 'วันที่ส่งสินค้าให้ผู้จำหน่าย';
+const CLSBS_RETURNED_DATE_HEADER = 'วันที่รับของคืนจากผู้จำหน่าย';
+const CLSBS_RECEIVED_MONEY_HEADER = 'เงินที่ได้รับจากผู้จำหน่าย';
+const CLSBS_RETURNED_SN_HEADER = 'SN ที่รับคืนจากผู้จำหน่าย';
+const CLSBS_PAID_MONEY_HEADER = 'เงินที่ชำระให้ผู้จำหน่าย';
+const RMA_BATCH_PREFIX = 'RMA-';
+const RMA_OVERDUE_DAYS = 30;
+
+const THAI_MONTHS_ = {
+  'มกราคม': 0, 'กุมภาพันธ์': 1, 'มีนาคม': 2, 'เมษายน': 3, 'พฤษภาคม': 4, 'มิถุนายน': 5,
+  'กรกฎาคม': 6, 'สิงหาคม': 7, 'กันยายน': 8, 'ตุลาคม': 9, 'พฤศจิกายน': 10, 'ธันวาคม': 11
+};
+const ENGLISH_MONTHS_ = {
+  January: 0, February: 1, March: 2, April: 3, May: 4, June: 5,
+  July: 6, August: 7, September: 8, October: 9, November: 10, December: 11
+};
+
+/**
+ * The legacy sheet mixes at least 3 date shapes in the very same column:
+ * "05 January 2026 (09:35:22)", "23 มิถุนายน 2568" (Thai month, Buddhist
+ * year), and " 08-12-2568" (DD-MM-YYYY, Buddhist year). Sheets can also just
+ * hand back a real Date object for date-formatted cells. Handle all of them
+ * rather than assuming one.
+ */
+function legacyParseAnyDate_(v) {
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  const s = String(v || '').trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (m && ENGLISH_MONTHS_.hasOwnProperty(m[2])) {
+    return new Date(Number(m[3]), ENGLISH_MONTHS_[m[2]], Number(m[1]));
+  }
+  m = s.match(/^(\d{1,2})\s+([ก-๙]+)\s+(\d{4})/);
+  if (m && THAI_MONTHS_.hasOwnProperty(m[2])) {
+    return new Date(Number(m[3]) - 543, THAI_MONTHS_[m[2]], Number(m[1]));
+  }
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m) {
+    const year = Number(m[3]);
+    return new Date(year > 2400 ? year - 543 : year, Number(m[2]) - 1, Number(m[1]));
+  }
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+/** Finds a row in a legacy sheet by an arbitrary "ID-like" column, reading the header
+ * fresh each time — these sheets are not in HEADERS/readObjects_'s fixed-schema world. */
+function legacyFindRowById_(sheetName, idHeader, idValue) {
+  const sh = spreadsheet_().getSheetByName(sheetName);
+  if (!sh) throw new Error('ไม่พบชีต ' + sheetName);
+  const lastCol = sh.getLastColumn();
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const idCol = headers.indexOf(idHeader);
+  if (idCol < 0) throw new Error('ไม่พบคอลัมน์ ' + idHeader + ' ในชีต ' + sheetName);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return null;
+  const idValues = sh.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < idValues.length; i++) {
+    if (String(idValues[i][0]) === String(idValue)) {
+      return { sheet: sh, headers: headers, row: i + 2 };
+    }
+  }
+  return null;
+}
+
+function legacyWriteFields_(found, fields) {
+  Object.keys(fields).forEach(function(h) {
+    const col = found.headers.indexOf(h);
+    if (col >= 0) found.sheet.getRange(found.row, col + 1).setValue(fields[h]);
+  });
+}
+
+/** Candidates = CLSBS rows not yet sent to a vendor (sent-date column empty). Staff pick
+ * which of these actually need a vendor RMA via checkboxes on the frontend — this list is
+ * not itself a claim that every row must be sent out. */
+function supplierRmaCandidates_(p) {
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    CLSBS_ID_HEADER, 'Bill Number', 'วันที่รับซ่อม', 'ชื่อลูกค้า', 'ชื่อสินค้าที่รับเคลม', 'SN ที่รับเคลม',
+    'กลุ่มสินค้าที่รับเคลม', 'ยี่ห้อสินค้าที่รับเคลม', 'รุ่นสินค้าที่รับเคลม', 'อาการเสีย', CLSBS_SENT_DATE_HEADER
+  ]);
+  const range = dateRange_(p.from, p.to);
+  const n = cols[CLSBS_ID_HEADER].length;
+  const q = p.q ? String(p.q).trim().toLowerCase() : '';
+  const rows = [];
+  for (let idx = 0; idx < n; idx++) {
+    if (String(cols[CLSBS_SENT_DATE_HEADER][idx] || '').trim()) continue; // already sent
+    const repairDate = legacyParseAnyDate_(cols['วันที่รับซ่อม'][idx]);
+    if ((p.from || p.to) && (!repairDate || repairDate < range.from || repairDate > range.to)) continue;
+    const row = {
+      id: String(cols[CLSBS_ID_HEADER][idx] || ''),
+      bill_number: String(cols['Bill Number'][idx] || ''),
+      repair_date: repairDate ? repairDate.toISOString() : '',
+      customer_name: String(cols['ชื่อลูกค้า'][idx] || ''),
+      product_name: String(cols['ชื่อสินค้าที่รับเคลม'][idx] || ''),
+      serial_no: String(cols['SN ที่รับเคลม'][idx] || ''),
+      product_group: String(cols['กลุ่มสินค้าที่รับเคลม'][idx] || ''),
+      brand: String(cols['ยี่ห้อสินค้าที่รับเคลม'][idx] || ''),
+      model: String(cols['รุ่นสินค้าที่รับเคลม'][idx] || ''),
+      symptom: String(cols['อาการเสีย'][idx] || '')
+    };
+    if (p.brand && row.brand !== p.brand) continue;
+    if (p.product_group && row.product_group !== p.product_group) continue;
+    if (q) {
+      const haystack = [row.id, row.bill_number, row.customer_name, row.serial_no, row.product_name].join(' ').toLowerCase();
+      if (haystack.indexOf(q) < 0) continue;
+    }
+    rows.push(row);
+  }
+  rows.sort(function(a, b) { return new Date(b.repair_date || 0) - new Date(a.repair_date || 0); });
+  return legacyPaginate_(rows, p);
+}
+
+function supplierRmaNextBatchSeq_(vendorKey, monthKey) {
+  const prefix = RMA_BATCH_PREFIX + vendorKey + '-' + monthKey + '-';
+  const used = readObjects_(SHEETS.SYNC_LOG)
+    .filter(function(r) { return r.action === 'supplier_rma_batch_create' && String(r.claim_no || '').indexOf(prefix) === 0; })
+    .map(function(r) { return Number(String(r.claim_no).slice(prefix.length)) || 0; });
+  return (used.length ? Math.max.apply(null, used) : 0) + 1;
+}
+
+function supplierRmaCreateBatch_(p) {
+  const ids = Array.isArray(p.ids) ? p.ids.filter(function(id) { return id; }) : [];
+  if (!ids.length) throw new Error('กรุณาเลือกอย่างน้อย 1 รายการ');
+  if (!p.vendor) throw new Error('กรุณาระบุผู้จำหน่าย');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const vendorKey = String(p.vendor).replace(/[^a-zA-Z0-9ก-๙]+/g, '');
+    const monthKey = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMM');
+    const seq = supplierRmaNextBatchSeq_(vendorKey, monthKey);
+    const batchNo = RMA_BATCH_PREFIX + vendorKey + '-' + monthKey + '-' + seq;
+    const now = new Date();
+    const missing = [];
+    ids.forEach(function(id) {
+      const found = legacyFindRowById_(LEGACY_CLSBS_SHEET, CLSBS_ID_HEADER, id);
+      if (!found) { missing.push(id); return; }
+      const fields = {};
+      fields[CLSBS_BATCH_HEADER] = batchNo;
+      fields[CLSBS_VENDOR_HEADER] = p.vendor;
+      fields[CLSBS_SENT_DATE_HEADER] = now;
+      legacyWriteFields_(found, fields);
+    });
+    if (missing.length === ids.length) throw new Error('ไม่พบรายการที่เลือกเลย (ID: ' + missing.join(', ') + ')');
+    logSync_('supplier_rma_batch_create', batchNo, 'ok', JSON.stringify({
+      vendor: p.vendor, item_ids: ids, missing_ids: missing, actor: p.actor || 'staff'
+    }));
+    return { ok: true, batch_no: batchNo, item_count: ids.length - missing.length, missing_ids: missing };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function supplierRmaBatchStatusOverride_(batchNo) {
+  const entries = readObjects_(SHEETS.SYNC_LOG).filter(function(r) {
+    return r.action === 'supplier_rma_batch_status' && r.claim_no === batchNo;
+  });
+  if (!entries.length) return null;
+  entries.sort(function(a, b) { return new Date(a.created_at) - new Date(b.created_at); });
+  return entries[entries.length - 1].result || null;
+}
+
+function supplierRmaDeriveStatus_(items, override) {
+  if (override) return override;
+  if (items.length && items.every(function(i) { return i.returned_from_vendor_date; })) return 'ได้รับคืนครบแล้ว';
+  if (items.some(function(i) { return i.returned_from_vendor_date; })) return 'ได้รับคืนบางส่วน';
+  return 'รอผลจากผู้จำหน่าย';
+}
+
+function supplierRmaBatches_(p) {
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    CLSBS_ID_HEADER, CLSBS_BATCH_HEADER, CLSBS_VENDOR_HEADER, CLSBS_SENT_DATE_HEADER,
+    CLSBS_RETURNED_DATE_HEADER, CLSBS_RECEIVED_MONEY_HEADER, CLSBS_PAID_MONEY_HEADER
+  ]);
+  const n = cols[CLSBS_ID_HEADER].length;
+  const groups = {};
+  for (let idx = 0; idx < n; idx++) {
+    const batchNo = String(cols[CLSBS_BATCH_HEADER][idx] || '').trim();
+    if (batchNo.indexOf(RMA_BATCH_PREFIX) !== 0) continue;
+    if (!groups[batchNo]) {
+      groups[batchNo] = { batch_no: batchNo, vendor: String(cols[CLSBS_VENDOR_HEADER][idx] || ''), sent_date: null, items: [] };
+    }
+    const sentDate = legacyParseAnyDate_(cols[CLSBS_SENT_DATE_HEADER][idx]);
+    if (sentDate && (!groups[batchNo].sent_date || sentDate < groups[batchNo].sent_date)) groups[batchNo].sent_date = sentDate;
+    groups[batchNo].items.push({
+      returned_from_vendor_date: legacyParseAnyDate_(cols[CLSBS_RETURNED_DATE_HEADER][idx]),
+      received_from_vendor: legacyNumber_(cols[CLSBS_RECEIVED_MONEY_HEADER][idx]),
+      paid_to_vendor: legacyNumber_(cols[CLSBS_PAID_MONEY_HEADER][idx])
+    });
+  }
+  const now = new Date();
+  const rows = Object.keys(groups).map(function(batchNo) {
+    const g = groups[batchNo];
+    const override = supplierRmaBatchStatusOverride_(batchNo);
+    const daysSinceSent = g.sent_date ? Math.floor((now - g.sent_date) / (1000 * 60 * 60 * 24)) : null;
+    return {
+      batch_no: g.batch_no,
+      vendor: g.vendor,
+      item_count: g.items.length,
+      sent_date: g.sent_date ? g.sent_date.toISOString() : '',
+      days_since_sent: daysSinceSent,
+      overdue: daysSinceSent !== null && daysSinceSent > RMA_OVERDUE_DAYS && supplierRmaDeriveStatus_(g.items, override) !== 'ได้รับคืนครบแล้ว',
+      status: supplierRmaDeriveStatus_(g.items, override),
+      total_paid_to_vendor: Number(g.items.reduce(function(s, i) { return s + i.paid_to_vendor; }, 0).toFixed(2)),
+      total_received_from_vendor: Number(g.items.reduce(function(s, i) { return s + i.received_from_vendor; }, 0).toFixed(2))
+    };
+  }).sort(function(a, b) { return new Date(b.sent_date || 0) - new Date(a.sent_date || 0); });
+
+  const filtered = rows.filter(function(r) {
+    if (p.vendor && r.vendor !== p.vendor) return false;
+    if (p.status && r.status !== p.status) return false;
+    return true;
+  });
+  return { ok: true, batches: filtered };
+}
+
+function supplierRmaBatchDetail_(batchNo) {
+  if (!batchNo) throw new Error('batch_no is required');
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    CLSBS_ID_HEADER, CLSBS_BATCH_HEADER, 'Bill Number', CLSBS_VENDOR_HEADER, 'ชื่อสินค้าที่รับเคลม', 'SN ที่รับเคลม',
+    'ยี่ห้อสินค้าที่รับเคลม', 'รุ่นสินค้าที่รับเคลม', 'อาการเสีย', CLSBS_SENT_DATE_HEADER, CLSBS_RETURNED_DATE_HEADER,
+    CLSBS_RETURNED_SN_HEADER, CLSBS_PAID_MONEY_HEADER, CLSBS_RECEIVED_MONEY_HEADER
+  ]);
+  const n = cols[CLSBS_ID_HEADER].length;
+  const items = [];
+  for (let idx = 0; idx < n; idx++) {
+    if (String(cols[CLSBS_BATCH_HEADER][idx] || '').trim() !== batchNo) continue;
+    items.push({
+      id: String(cols[CLSBS_ID_HEADER][idx] || ''),
+      bill_number: String(cols['Bill Number'][idx] || ''),
+      product_name: String(cols['ชื่อสินค้าที่รับเคลม'][idx] || ''),
+      serial_no: String(cols['SN ที่รับเคลม'][idx] || ''),
+      brand: String(cols['ยี่ห้อสินค้าที่รับเคลม'][idx] || ''),
+      model: String(cols['รุ่นสินค้าที่รับเคลม'][idx] || ''),
+      symptom: String(cols['อาการเสีย'][idx] || ''),
+      sent_date: (legacyParseAnyDate_(cols[CLSBS_SENT_DATE_HEADER][idx]) || '') && legacyParseAnyDate_(cols[CLSBS_SENT_DATE_HEADER][idx]).toISOString(),
+      returned_from_vendor_date: (function() { const d = legacyParseAnyDate_(cols[CLSBS_RETURNED_DATE_HEADER][idx]); return d ? d.toISOString() : ''; })(),
+      returned_sn: String(cols[CLSBS_RETURNED_SN_HEADER][idx] || ''),
+      paid_to_vendor: legacyNumber_(cols[CLSBS_PAID_MONEY_HEADER][idx]),
+      received_from_vendor: legacyNumber_(cols[CLSBS_RECEIVED_MONEY_HEADER][idx])
+    });
+  }
+  if (!items.length) throw new Error('ไม่พบชุดเคลม ' + batchNo);
+  const vendor = String(cols[CLSBS_VENDOR_HEADER][cols[CLSBS_BATCH_HEADER].findIndex(function(v) { return String(v || '').trim() === batchNo; })] || '');
+  const rejectReasons = readObjects_(SHEETS.SYNC_LOG).filter(function(r) {
+    return r.action === 'supplier_rma_item_reject' && items.some(function(i) { return i.id === r.claim_no; });
+  }).reduce(function(map, r) { map[r.claim_no] = r.message; return map; }, {});
+  items.forEach(function(i) { i.reject_reason = rejectReasons[i.id] || ''; });
+  return { ok: true, batch_no: batchNo, vendor: vendor, status: supplierRmaBatchStatusOverride_(batchNo) || supplierRmaDeriveStatus_(items.map(function(i) {
+    return { returned_from_vendor_date: i.returned_from_vendor_date };
+  }), null), items: items };
+}
+
+function supplierRmaUpdateItem_(p) {
+  if (!p.id) throw new Error('id is required');
+  const found = legacyFindRowById_(LEGACY_CLSBS_SHEET, CLSBS_ID_HEADER, p.id);
+  if (!found) throw new Error('ไม่พบรายการ ID ' + p.id);
+  const fields = {};
+  if (p.returned_from_vendor_date !== undefined) fields[CLSBS_RETURNED_DATE_HEADER] = p.returned_from_vendor_date ? new Date(p.returned_from_vendor_date) : '';
+  if (p.received_from_vendor !== undefined) fields[CLSBS_RECEIVED_MONEY_HEADER] = Number(p.received_from_vendor || 0);
+  if (p.returned_sn !== undefined) fields[CLSBS_RETURNED_SN_HEADER] = p.returned_sn;
+  legacyWriteFields_(found, fields);
+  if (p.reject_reason) logSync_('supplier_rma_item_reject', p.id, 'rejected', p.reject_reason);
+  logSync_('supplier_rma_update_item', p.id, 'ok', p.actor || 'staff');
+  return { ok: true, id: p.id };
+}
+
+function supplierRmaUpdateBatchStatus_(p) {
+  if (!p.batch_no || !p.status) throw new Error('batch_no และ status จำเป็น');
+  logSync_('supplier_rma_batch_status', p.batch_no, p.status, p.note || (p.actor || 'staff'));
+  return { ok: true, batch_no: p.batch_no, status: p.status };
+}
+
+/** Vendor approval rate, unreturned money, and average turnaround — computed from real
+ * RMA-batched rows only (rows never batched through this feature are out of scope). */
+function supplierRmaAnalytics_() {
+  const cols = legacySheetColumns_(LEGACY_CLSBS_SHEET, [
+    CLSBS_ID_HEADER, CLSBS_BATCH_HEADER, CLSBS_VENDOR_HEADER, CLSBS_SENT_DATE_HEADER,
+    CLSBS_RETURNED_DATE_HEADER, CLSBS_RECEIVED_MONEY_HEADER, CLSBS_PAID_MONEY_HEADER, 'ยี่ห้อสินค้าที่รับเคลม'
+  ]);
+  const n = cols[CLSBS_ID_HEADER].length;
+  const byVendor = {};
+  for (let idx = 0; idx < n; idx++) {
+    const batchNo = String(cols[CLSBS_BATCH_HEADER][idx] || '').trim();
+    if (batchNo.indexOf(RMA_BATCH_PREFIX) !== 0) continue;
+    const vendor = String(cols[CLSBS_VENDOR_HEADER][idx] || 'ไม่ระบุ');
+    if (!byVendor[vendor]) byVendor[vendor] = { vendor: vendor, sent: 0, returned: 0, unreturned_value: 0, turnaround_days: [] };
+    const v = byVendor[vendor];
+    v.sent += 1;
+    const sentDate = legacyParseAnyDate_(cols[CLSBS_SENT_DATE_HEADER][idx]);
+    const returnedDate = legacyParseAnyDate_(cols[CLSBS_RETURNED_DATE_HEADER][idx]);
+    const receivedMoney = legacyNumber_(cols[CLSBS_RECEIVED_MONEY_HEADER][idx]);
+    if (returnedDate) {
+      v.returned += 1;
+      if (sentDate) v.turnaround_days.push(Math.max(0, (returnedDate - sentDate) / (1000 * 60 * 60 * 24)));
+    } else {
+      v.unreturned_value += legacyNumber_(cols[CLSBS_PAID_MONEY_HEADER][idx]);
+    }
+  }
+  const rows = Object.keys(byVendor).map(function(vendor) {
+    const v = byVendor[vendor];
+    return {
+      vendor: vendor,
+      sent: v.sent,
+      returned: v.returned,
+      approval_rate: v.sent > 0 ? Number((v.returned / v.sent * 100).toFixed(1)) : null,
+      unreturned_value: Number(v.unreturned_value.toFixed(2)),
+      avg_turnaround_days: v.turnaround_days.length ? Number((v.turnaround_days.reduce(function(s, d) { return s + d; }, 0) / v.turnaround_days.length).toFixed(1)) : null
+    };
+  }).sort(function(a, b) { return b.sent - a.sent; });
+  return {
+    ok: true,
+    by_vendor: rows,
+    total_unreturned_value: Number(rows.reduce(function(s, r) { return s + r.unreturned_value; }, 0).toFixed(2))
+  };
 }
 
 /**

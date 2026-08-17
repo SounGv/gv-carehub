@@ -22,6 +22,11 @@ import type {
   ReportResponse,
   ReserveClaimNoResponse,
   SearchResponse,
+  SupplierRmaAnalyticsResponse,
+  SupplierRmaBatchDetailResponse,
+  SupplierRmaBatchSummary,
+  SupplierRmaCandidateRow,
+  SupplierRmaCreateBatchResult,
 } from './types';
 
 export class GvApiError extends Error {
@@ -134,6 +139,21 @@ export interface LegacyClsbsFilters {
   page_size?: string;
 }
 
+export interface SupplierRmaCandidateFilters {
+  from?: string;
+  to?: string;
+  brand?: string;
+  product_group?: string;
+  q?: string;
+  page?: string;
+  page_size?: string;
+}
+
+export interface SupplierRmaBatchFilters {
+  vendor?: string;
+  status?: string;
+}
+
 export const gvApi = {
   health: () => apiGet<{ ok: true; service: string; server_time: string }>('health'),
 
@@ -192,4 +212,29 @@ export const gvApi = {
 
   uploadFile: (payload: { filename: string; mime_type: string; data_base64: string; claim_no?: string; image_type?: string }) =>
     apiPost<{ ok: true; url: string; file_id: string }>('upload_file', payload),
+
+  supplierRmaCandidates: (filters: SupplierRmaCandidateFilters) =>
+    apiGet<LegacyRowsResponse<SupplierRmaCandidateRow>>('supplier_rma_candidates', filters as Record<string, string | undefined>),
+
+  supplierRmaCreateBatch: (payload: { ids: string[]; vendor: string; actor: string }) =>
+    apiPost<SupplierRmaCreateBatchResult>('supplier_rma_create_batch', payload),
+
+  supplierRmaBatches: (filters: SupplierRmaBatchFilters) =>
+    apiGet<{ ok: true; batches: SupplierRmaBatchSummary[] }>('supplier_rma_batches', filters as Record<string, string | undefined>),
+
+  supplierRmaBatchDetail: (batchNo: string) => apiGet<SupplierRmaBatchDetailResponse>('supplier_rma_batch_detail', { batch_no: batchNo }),
+
+  supplierRmaUpdateItem: (payload: {
+    id: string;
+    returned_from_vendor_date?: string;
+    received_from_vendor?: number;
+    returned_sn?: string;
+    reject_reason?: string;
+    actor: string;
+  }) => apiPost<{ ok: true; id: string }>('supplier_rma_update_item', payload),
+
+  supplierRmaUpdateBatchStatus: (payload: { batch_no: string; status: string; actor: string; note?: string }) =>
+    apiPost<{ ok: true; batch_no: string; status: string }>('supplier_rma_update_batch_status', payload),
+
+  supplierRmaAnalytics: () => apiGet<SupplierRmaAnalyticsResponse>('supplier_rma_analytics'),
 };
