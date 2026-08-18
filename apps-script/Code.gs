@@ -332,9 +332,9 @@ function shipClaim_(p) {
 }
 
 function assertTrackingAvailable_(carrier, trackingNo) {
-  const duplicate = readObjects_(SHEETS.SHIPMENTS).some(function(s) {
-    return String(s.carrier || '').toLowerCase() === String(carrier || '').toLowerCase() &&
-      String(s.tracking_no).toLowerCase() === String(trackingNo).toLowerCase();
+  if (!trackingNo) return;
+  const duplicate = findRowsByKey_(SHEETS.SHIPMENTS, 'tracking_no', trackingNo).some(function(r) {
+    return String(r.obj.carrier || '').toLowerCase() === String(carrier || '').toLowerCase();
   });
   if (duplicate) throw new Error('Tracking นี้ถูกใช้แล้ว');
 }

@@ -1,17 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { differenceInCalendarDays, format, subDays } from 'date-fns';
 import {
   AlertOctagon,
-  ArrowRight,
-  Boxes,
   CheckCircle2,
   ClipboardList,
   Coins,
-  HandCoins,
-  Landmark,
   PackageCheck,
   PackageSearch,
   Truck,
@@ -22,7 +17,7 @@ import { gvApi, type DashboardFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
-import { DailyClaimsChart, MonthlyTrendChart, RankedBarChart, StatusWorkflowChart } from '@/components/dashboard/charts';
+import { DailyClaimsChart, RankedBarChart, StatusWorkflowChart } from '@/components/dashboard/charts';
 import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +32,6 @@ export default function AdminDashboardPage() {
   const [filters, setFilters] = useState<DashboardFilters>({ from: defaultFrom(), to: today(), sku: '', status: '', channel: '' });
   const meta = useMeta();
   const dashboard = useAsync(() => gvApi.dashboard(filters), [filters.from, filters.to, filters.sku, filters.status, filters.channel]);
-  const legacy = useAsync(() => gvApi.legacyReport(), []);
 
   // "10-second" comparison: same filters, the equal-length period immediately before `from`.
   const previousFilters = useMemo<DashboardFilters>(() => {
@@ -229,49 +223,6 @@ export default function AdminDashboardPage() {
           <p className="text-xs text-slate-400">
             ลูกศรเทียบกับช่วง {formatThaiDate(previousFilters.from)} - {formatThaiDate(previousFilters.to)} (ช่วงก่อนหน้าที่มีความยาวเท่ากัน)
           </p>
-
-          <Card>
-            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-              <div>
-                <CardTitle>ภาพรวมข้อมูลสะสมทั้งหมด (บริการหลังการขาย + CLSBS)</CardTitle>
-                <p className="mt-1 text-xs text-slate-400">ข้อมูลย้อนหลังทั้งหมดจากชีตเดิม อ่านสดโดยตรง แคชไว้สูงสุด 3 นาที</p>
-              </div>
-              <Link
-                href="/admin/reports?tab=service_log"
-                className="flex flex-none items-center gap-1 whitespace-nowrap rounded-lg bg-brand-charcoal px-3 py-2 text-xs font-semibold text-white hover:bg-brand-charcoal/90"
-              >
-                ดูรายละเอียดทั้งหมด <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {legacy.isLoading && !legacy.data && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-20 rounded-xl" />
-                  ))}
-                </div>
-              )}
-              {legacy.error && !legacy.data && <ErrorState message={legacy.error} onRetry={legacy.refetch} />}
-              {legacy.data && (
-                <>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    <KpiCard label="เคสสะสม (บริการหลังการขาย)" value={legacy.data.service_log.total_cases} icon={ClipboardList} />
-                    <KpiCard label="รายการ CLSBS สะสม" value={legacy.data.clsbs.total_records} icon={Boxes} />
-                    <KpiCard label="จ่ายให้ผู้จำหน่าย" value={legacy.data.clsbs.money.paid_to_vendor} icon={HandCoins} isCurrency tone="warning" />
-                    <KpiCard label="ได้รับจากผู้จำหน่าย" value={legacy.data.clsbs.money.received_from_vendor} icon={Landmark} isCurrency tone="good" />
-                    <KpiCard label="เรียกเก็บจากลูกค้า" value={legacy.data.clsbs.money.charged_to_customer} icon={Wallet} isCurrency />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    <KpiCard label="คืนให้ลูกค้า" value={legacy.data.clsbs.money.refunded_to_customer} icon={Coins} isCurrency tone="warning" />
-                  </div>
-                  <div>
-                    <div className="mb-2 text-xs font-semibold text-slate-500">จำนวนเคสรายเดือน (บริการหลังการขาย)</div>
-                    <MonthlyTrendChart data={legacy.data.service_log.by_month} />
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
