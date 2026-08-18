@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input, Label, Select, Textarea } from '@/components/ui/input';
+import { Label, Select, Textarea } from '@/components/ui/input';
 import { gvApi, GvApiError } from '@/lib/api';
 import { useAuth } from '@/components/layout/auth-provider';
 import { serviceDetailSchema, type ServiceDetailValues } from '@/lib/validators';
@@ -65,11 +65,6 @@ export function ServiceDetailForm({ claimNo, item, onSaved }: { claimNo: string;
             </option>
           ))}
         </Select>
-      </div>
-      <div>
-        <Label htmlFor="repair_cost">ค่าใช้จ่าย (บาท)</Label>
-        <Input id="repair_cost" type="number" min={0} step="0.01" {...form.register('repair_cost')} />
-        {form.formState.errors.repair_cost && <p className="mt-1 text-xs text-error">{form.formState.errors.repair_cost.message}</p>}
       </div>
       <div className="sm:col-span-2">
         <Label htmlFor="technician_note">หมายเหตุช่าง</Label>
