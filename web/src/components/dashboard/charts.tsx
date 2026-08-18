@@ -41,7 +41,7 @@ export function DailyClaimsChart({ data }: { data: { date: string; count: number
           cursor={{ stroke: GRID, strokeWidth: 1 }}
         />
         <Area
-          type="monotone"
+          type="natural"
           dataKey="count"
           stroke={CHART_PRIMARY}
           strokeWidth={2}
