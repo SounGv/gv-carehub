@@ -51,6 +51,14 @@ export default function AdminDashboardPage() {
     () => (dashboard.data?.charts.top_skus_damage ?? []).map((r) => ({ ...r, label: r.product_name ? `${r.sku} · ${r.product_name}` : r.sku })),
     [dashboard.data],
   );
+  const topClaimedSkuRows = useMemo(
+    () =>
+      (dashboard.data?.charts.top_skus_by_claim_count ?? []).map((r) => ({
+        ...r,
+        label: r.product_name ? `${r.sku} · ${r.product_name}` : r.sku,
+      })),
+    [dashboard.data],
+  );
   const topIssueRows = useMemo(() => dashboard.data?.charts.top_issues ?? [], [dashboard.data]);
   const brandRows = useMemo(() => dashboard.data?.charts.damage_by_brand ?? [], [dashboard.data]);
   const ownerRows = useMemo(() => dashboard.data?.charts.by_owner ?? [], [dashboard.data]);
@@ -251,6 +259,21 @@ export default function AdminDashboardPage() {
                   valueLabel="มูลค่าความเสียหาย"
                   emptyTitle="ไม่มีข้อมูล SKU ในช่วงที่เลือก"
                   formatValue={(v) => formatCurrency(v)}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>SKU ที่แจ้งเคลมบ่อยที่สุด (Top 10)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RankedBarChart
+                  data={topClaimedSkuRows}
+                  labelKey="label"
+                  valueKey="count"
+                  valueLabel="จำนวนเคลม"
+                  emptyTitle="ไม่มีข้อมูล SKU ในช่วงที่เลือก"
                 />
               </CardContent>
             </Card>

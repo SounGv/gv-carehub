@@ -106,6 +106,15 @@ begin
           group by 1
         ) x
       ),
+      'top_skus_by_claim_count', (
+        select coalesce(json_agg(json_build_object('sku', sku, 'product_name', product_name, 'count', cnt) order by cnt desc), '[]'::json)
+        from (
+          select coalesce(nullif(sku, ''), 'ไม่ระบุ SKU') as sku,
+                 max(product_name) as product_name,
+                 count(distinct claim_no) as cnt
+          from t_filtered_items group by 1 order by cnt desc limit 10
+        ) x
+      ),
       'by_owner', (
         select coalesce(json_agg(json_build_object('owner', owner, 'count', cnt) order by cnt desc), '[]'::json)
         from (

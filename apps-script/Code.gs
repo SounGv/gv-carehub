@@ -310,6 +310,11 @@ function updateStatus_(p, toStatus) {
   const found = findRowBy_(sh, 'claim_no', p.claim_no);
   if (!found) throw new Error('ไม่พบเลขเคส ' + p.claim_no);
   const now = new Date();
+  // First staff member to touch this claim becomes its owner automatically —
+  // never overwrites an owner already set (manually or by an earlier action),
+  // so re-assigning stays a deliberate edit via OwnerSelect, not something a
+  // later status change can accidentally clobber.
+  if (!found.obj.owner && p.actor) found.obj.owner = p.actor;
   found.obj.status = toStatus;
   found.obj.last_updated_at = now;
   found.obj.last_updated_by = p.actor || 'staff';
@@ -686,11 +691,18 @@ function dashboardReport_(p) {
   const damageBySku = {};
   const issueCounts = {};
   const damageByBrand = {};
+  // Distinct claim count per SKU — "which SKU gets claimed often" is a
+  // different question from damageBySku's qty (units on a claim, not the
+  // number of separate claims), so this is tracked with its own Set.
+  const claimNosBySku = {};
   filteredItems.forEach(function(i) {
     const skuKey = i.sku || 'ไม่ระบุ SKU';
     damageBySku[skuKey] = damageBySku[skuKey] || { sku: skuKey, product_name: i.product_name || '', value: 0, qty: 0 };
     damageBySku[skuKey].value += Number(i.repair_cost || 0);
     damageBySku[skuKey].qty += Number(i.quantity || 1);
+
+    claimNosBySku[skuKey] = claimNosBySku[skuKey] || {};
+    claimNosBySku[skuKey][i.claim_no] = true;
 
     const issueKey = i.issue_group || 'ไม่ระบุอาการ';
     issueCounts[issueKey] = (issueCounts[issueKey] || 0) + 1;
@@ -698,6 +710,13 @@ function dashboardReport_(p) {
     const brand = (productBySku[i.sku] && productBySku[i.sku].brand) || 'ไม่ระบุแบรนด์';
     damageByBrand[brand] = (damageByBrand[brand] || 0) + Number(i.repair_cost || 0);
   });
+  const topSkusByClaimCount = Object.keys(claimNosBySku).map(function(sku) {
+    return {
+      sku: sku,
+      product_name: (damageBySku[sku] && damageBySku[sku].product_name) || '',
+      count: Object.keys(claimNosBySku[sku]).length
+    };
+  }).sort(function(a, b) { return b.count - a.count; }).slice(0, 10);
 
   const dailyMap = {};
   filtered.forEach(function(c) {
@@ -736,6 +755,7 @@ function dashboardReport_(p) {
       top_skus_damage: Object.values(damageBySku).sort(function(a, b) { return b.value - a.value; }).slice(0, 10),
       top_issues: Object.keys(issueCounts).map(function(k) { return { issue: k, count: issueCounts[k] }; }).sort(function(a, b) { return b.count - a.count; }).slice(0, 10),
       damage_by_brand: Object.keys(damageByBrand).map(function(k) { return { brand: k, value: Number(damageByBrand[k].toFixed(2)) }; }).sort(function(a, b) { return b.value - a.value; }),
+      top_skus_by_claim_count: topSkusByClaimCount,
       by_owner: Object.keys(ownerCounts).map(function(k) { return { owner: k, count: ownerCounts[k] }; }).sort(function(a, b) { return b.count - a.count; }),
       defect_rate_vs_sales: salesTotal > 0 ? Number((claimedQty / salesTotal * 100).toFixed(2)) : null
     }
