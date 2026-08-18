@@ -150,6 +150,7 @@ export interface DashboardCharts {
   top_skus_damage: { sku: string; product_name: string; value: number; qty: number }[];
   top_issues: { issue: string; count: number }[];
   damage_by_brand: { brand: string; value: number }[];
+  by_owner: { owner: string; count: number }[];
   defect_rate_vs_sales: number | null;
 }
 

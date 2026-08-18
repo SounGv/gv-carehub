@@ -53,6 +53,7 @@ export default function AdminDashboardPage() {
   );
   const topIssueRows = useMemo(() => dashboard.data?.charts.top_issues ?? [], [dashboard.data]);
   const brandRows = useMemo(() => dashboard.data?.charts.damage_by_brand ?? [], [dashboard.data]);
+  const ownerRows = useMemo(() => dashboard.data?.charts.by_owner ?? [], [dashboard.data]);
 
   return (
     <div className="space-y-5">
@@ -192,6 +193,15 @@ export default function AdminDashboardPage() {
           <p className="text-xs text-slate-400">
             ลูกศรเทียบกับช่วง {formatThaiDate(previousFilters.from)} - {formatThaiDate(previousFilters.to)} (ช่วงก่อนหน้าที่มีความยาวเท่ากัน)
           </p>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>จำนวนเคสที่แต่ละคนรับเรื่อง (เจ้าของเคส)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RankedBarChart data={ownerRows} labelKey="owner" valueKey="count" valueLabel="จำนวนเคส" emptyTitle="ยังไม่มีเคสที่กำหนดเจ้าของในช่วงที่เลือก" />
+            </CardContent>
+          </Card>
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">

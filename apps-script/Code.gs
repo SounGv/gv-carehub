@@ -669,6 +669,12 @@ function dashboardReport_(p) {
   const statusCounts = {};
   filtered.forEach(function(c) { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
 
+  const ownerCounts = {};
+  filtered.forEach(function(c) {
+    const key = c.owner || 'ยังไม่ระบุ';
+    ownerCounts[key] = (ownerCounts[key] || 0) + 1;
+  });
+
   const filteredClaimNos = {};
   filtered.forEach(function(c) { filteredClaimNos[c.claim_no] = c; });
   const filteredItems = items.filter(function(i) { return filteredClaimNos[i.claim_no]; });
@@ -726,6 +732,7 @@ function dashboardReport_(p) {
       top_skus_damage: Object.values(damageBySku).sort(function(a, b) { return b.value - a.value; }).slice(0, 10),
       top_issues: Object.keys(issueCounts).map(function(k) { return { issue: k, count: issueCounts[k] }; }).sort(function(a, b) { return b.count - a.count; }).slice(0, 10),
       damage_by_brand: Object.keys(damageByBrand).map(function(k) { return { brand: k, value: Number(damageByBrand[k].toFixed(2)) }; }).sort(function(a, b) { return b.value - a.value; }),
+      by_owner: Object.keys(ownerCounts).map(function(k) { return { owner: k, count: ownerCounts[k] }; }).sort(function(a, b) { return b.count - a.count; }),
       defect_rate_vs_sales: salesTotal > 0 ? Number((claimedQty / salesTotal * 100).toFixed(2)) : null
     }
   };
