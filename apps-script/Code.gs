@@ -290,8 +290,21 @@ function matchedFields_(claim, items, shipments, needle) {
 
 /* ---------------- Status changes ---------------- */
 
+/** ดำเนินการเสร็จ/รอจัดส่งคืน/จัดส่งแล้ว all mean "technician is done testing/repairing" —
+ * require inspection_result (ผลตรวจสินค้า) to already be saved before allowing any of
+ * these, so a case can't skip straight past the testing step. */
+const TEST_RESULT_REQUIRED_STATUSES_ = ['ดำเนินการเสร็จ', 'รอจัดส่งคืน', 'จัดส่งแล้ว'];
+
+function assertTestResultRecorded_(claimNo) {
+  const item = readObjectByKey_(SHEETS.ITEMS, 'claim_no', claimNo);
+  if (!item || !String(item.inspection_result || '').trim()) {
+    throw new Error('กรุณาให้ช่างลงผลตรวจสอบ/ผลเทส (การ์ด "ผลการทดสอบ") ก่อน ถึงจะเปลี่ยนสถานะนี้ได้');
+  }
+}
+
 function updateStatus_(p, toStatus) {
   if (!p.claim_no) throw new Error('claim_no is required');
+  if (TEST_RESULT_REQUIRED_STATUSES_.indexOf(toStatus) >= 0) assertTestResultRecorded_(p.claim_no);
   const sh = spreadsheet_().getSheetByName(SHEETS.CLAIMS);
   const found = findRowBy_(sh, 'claim_no', p.claim_no);
   if (!found) throw new Error('ไม่พบเลขเคส ' + p.claim_no);

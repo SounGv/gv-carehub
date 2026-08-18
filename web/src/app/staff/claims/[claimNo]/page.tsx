@@ -42,7 +42,12 @@ export default function StaffClaimDetailPage() {
           <CardTitle>เปลี่ยนสถานะเคส</CardTitle>
         </CardHeader>
         <CardContent>
-          <StatusActions claimNo={claim.claim_no} currentStatus={claim.status} onChanged={detail.refetch} />
+          <StatusActions
+            claimNo={claim.claim_no}
+            currentStatus={claim.status}
+            hasTestResult={!!item?.inspection_result?.trim()}
+            onChanged={detail.refetch}
+          />
         </CardContent>
       </Card>
 
@@ -153,7 +158,8 @@ export default function StaffClaimDetailPage() {
       {item && (
         <Card>
           <CardHeader>
-            <CardTitle>ผลตรวจสอบ / วิธีแก้ไข / ค่าใช้จ่าย</CardTitle>
+            <CardTitle>ผลการทดสอบ (ช่างลงผลเทส) / วิธีแก้ไข / ค่าใช้จ่าย</CardTitle>
+            <p className="mt-1 text-xs text-slate-400">ต้องบันทึกผลตรวจสอบตรงนี้ก่อน ถึงจะเปลี่ยนสถานะเป็น &quot;ดำเนินการเสร็จ&quot;/&quot;รอจัดส่งคืน&quot; ได้</p>
           </CardHeader>
           <CardContent>
             <ServiceDetailForm claimNo={claim.claim_no} item={item} onSaved={detail.refetch} />

@@ -11,7 +11,24 @@ import { cn } from '@/lib/utils';
 
 const DIRECT_STATUSES = ['รับเข้าคลังแล้ว', 'กำลังดำเนินการ', 'รออะไหล่', 'ดำเนินการเสร็จ', 'รอจัดส่งคืน', 'ปิดเคส'];
 
-export function StatusActions({ claimNo, currentStatus, onChanged }: { claimNo: string; currentStatus: string; onChanged: () => void }) {
+/** Requires the technician to have saved a test/inspection result (ผลตรวจสินค้า)
+ * before the case can move past the "testing" stage — mirrors the same gate
+ * enforced server-side in updateStatus_/assertTestResultRecorded_, kept here
+ * too so staff see *why* the button is disabled instead of hitting an error. */
+const TEST_RESULT_REQUIRED_STATUSES = ['ดำเนินการเสร็จ', 'รอจัดส่งคืน'];
+const NO_TEST_RESULT_MESSAGE = 'ต้องให้ช่างลงผลตรวจสอบ/ผลเทสในการ์ด "ผลตรวจสอบ" ก่อน ถึงจะเปลี่ยนสถานะนี้ได้';
+
+export function StatusActions({
+  claimNo,
+  currentStatus,
+  hasTestResult,
+  onChanged,
+}: {
+  claimNo: string;
+  currentStatus: string;
+  hasTestResult: boolean;
+  onChanged: () => void;
+}) {
   const { session } = useAuth();
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
@@ -34,24 +51,37 @@ export function StatusActions({ claimNo, currentStatus, onChanged }: { claimNo: 
     }
   }
 
+  const shipBlocked = !hasTestResult;
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {DIRECT_STATUSES.map((status) => (
-        <Button
-          key={status}
-          size="sm"
-          variant={status === currentStatus ? 'default' : 'outline'}
-          disabled={status === currentStatus}
-          loading={pending === status}
-          onClick={() => changeTo(status)}
-          className={cn(status === currentStatus && 'bg-brand-charcoal')}
-        >
-          {status}
-        </Button>
-      ))}
-      <Button size="sm" variant="outline" onClick={() => router.push(`/staff/ship?claim_no=${encodeURIComponent(claimNo)}`)}>
+    <div className="flex flex-wrap items-start gap-2">
+      {DIRECT_STATUSES.map((status) => {
+        const blocked = !hasTestResult && TEST_RESULT_REQUIRED_STATUSES.includes(status) && status !== currentStatus;
+        return (
+          <Button
+            key={status}
+            size="sm"
+            variant={status === currentStatus ? 'default' : 'outline'}
+            disabled={status === currentStatus || blocked}
+            loading={pending === status}
+            onClick={() => changeTo(status)}
+            title={blocked ? NO_TEST_RESULT_MESSAGE : undefined}
+            className={cn(status === currentStatus && 'bg-brand-charcoal')}
+          >
+            {status}
+          </Button>
+        );
+      })}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={shipBlocked}
+        title={shipBlocked ? NO_TEST_RESULT_MESSAGE : undefined}
+        onClick={() => router.push(`/staff/ship?claim_no=${encodeURIComponent(claimNo)}`)}
+      >
         <Truck className="h-3.5 w-3.5" /> จัดส่งแล้ว (กรอกข้อมูลขนส่ง)
       </Button>
+      {shipBlocked && <p className="w-full text-xs text-amber-600">{NO_TEST_RESULT_MESSAGE}</p>}
     </div>
   );
 }
