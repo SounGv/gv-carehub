@@ -25,22 +25,25 @@ const STEP_FIELDS: Record<number, (keyof NewClaimValues | 'address')[]> = {
   3: ['address'],
 };
 
+/** Uploads every file concurrently instead of one-at-a-time — each upload is its
+ * own Apps Script round-trip (Drive can take a couple seconds per file), and
+ * doing them all in parallel is what actually makes claim submission fast when
+ * a customer attaches photos, rather than paying that cost N times over. */
 async function uploadImages(files: File[], imageType: string): Promise<string[]> {
-  const urls: string[] = [];
-  for (const file of files) {
-    try {
-      const base64 = await fileToBase64(file);
-      const result = await gvApi.uploadFile({ filename: file.name, mime_type: file.type || 'image/jpeg', data_base64: base64, image_type: imageType });
-      urls.push(result.url);
-    } catch (err) {
-      const message = err instanceof GvApiError ? err.message : 'อัปโหลดรูปไม่สำเร็จ';
-      toast.warning(`ไม่สามารถอัปโหลด ${file.name}: ${message}`);
-      // Stop trying further files once the upload endpoint itself is unusable
-      // (e.g. Drive folder not configured yet) — no point retrying each one.
-      if (message.includes('drive_folder_id')) break;
-    }
-  }
-  return urls;
+  const results = await Promise.all(
+    files.map(async (file) => {
+      try {
+        const base64 = await fileToBase64(file);
+        const result = await gvApi.uploadFile({ filename: file.name, mime_type: file.type || 'image/jpeg', data_base64: base64, image_type: imageType });
+        return result.url;
+      } catch (err) {
+        const message = err instanceof GvApiError ? err.message : 'อัปโหลดรูปไม่สำเร็จ';
+        toast.warning(`ไม่สามารถอัปโหลด ${file.name}: ${message}`);
+        return null;
+      }
+    }),
+  );
+  return results.filter((url): url is string => url !== null);
 }
 
 export function NewClaimWizard() {

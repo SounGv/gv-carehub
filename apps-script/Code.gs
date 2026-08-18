@@ -401,7 +401,11 @@ function uploadFile_(p) {
   const folder = DriveApp.getFolderById(folderId);
   const blob = Utilities.newBlob(Utilities.base64Decode(p.data_base64), p.mime_type || 'image/jpeg', p.filename);
   const file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  // No per-file setSharing() call here on purpose — that's a separate Drive ACL
+  // round-trip that made every single upload take noticeably longer. The parent
+  // folder is instead shared once (see tempSetPublicViewFolderSharing_), and Drive
+  // files inherit view access from an ancestor folder, so this stays viewable via
+  // the /uc?id= link without paying that cost on every upload.
   const url = 'https://drive.google.com/uc?id=' + file.getId();
   logSync_('upload_file', p.claim_no || '', 'ok', p.filename);
   return { ok: true, url: url, file_id: file.getId() };
