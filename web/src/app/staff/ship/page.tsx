@@ -33,7 +33,7 @@ function StaffShipContent() {
 
   const form = useForm<ShipFormValues>({
     resolver: zodResolver(shipFormSchema),
-    defaultValues: { claim_no: '', carrier: '', tracking_no: '', ship_date: format(new Date(), 'yyyy-MM-dd'), note: '' },
+    defaultValues: { claim_no: '', carrier: '', tracking_no: '', ship_date: format(new Date(), 'yyyy-MM-dd'), note: '', replacement_sku: '' },
   });
 
   async function handleSearch(q: string) {
@@ -76,13 +76,14 @@ function StaffShipContent() {
         tracking_no: values.tracking_no,
         ship_date: values.ship_date,
         note: values.note || undefined,
+        replacement_sku: values.replacement_sku || undefined,
         actor: session.name,
       });
       toast.success(`บันทึกจัดส่งคืนเคส ${values.claim_no} สำเร็จ`);
       setSelected(null);
       setResults(null);
       setQuery('');
-      form.reset({ claim_no: '', carrier: '', tracking_no: '', ship_date: format(new Date(), 'yyyy-MM-dd'), note: '' });
+      form.reset({ claim_no: '', carrier: '', tracking_no: '', ship_date: format(new Date(), 'yyyy-MM-dd'), note: '', replacement_sku: '' });
     } catch (err) {
       toast.error(err instanceof GvApiError ? err.message : 'บันทึกจัดส่งคืนไม่สำเร็จ');
     } finally {
@@ -160,6 +161,10 @@ function StaffShipContent() {
                   <Label htmlFor="ship_date">วันที่ส่ง</Label>
                   <Input id="ship_date" type="date" {...form.register('ship_date')} />
                   {form.formState.errors.ship_date && <p className="mt-1 text-xs text-error">{form.formState.errors.ship_date.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="replacement_sku">SKU/รุ่นที่เปลี่ยน (ถ้ามี)</Label>
+                  <Input id="replacement_sku" {...form.register('replacement_sku')} placeholder="กรอกถ้าเปลี่ยนเป็นสินค้า/รุ่นอื่น" />
                 </div>
                 <div className="sm:col-span-2">
                   <Label htmlFor="note">หมายเหตุ</Label>

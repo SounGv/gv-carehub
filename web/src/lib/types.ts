@@ -64,6 +64,7 @@ export interface ShipmentLog {
   scanned_by: string;
   label_image_url: string;
   note: string;
+  replacement_sku?: string;
 }
 
 export interface StatusHistoryEntry {

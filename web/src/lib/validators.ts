@@ -59,6 +59,7 @@ export const shipFormSchema = z.object({
   tracking_no: z.string().min(3, 'กรุณาระบุเลข Tracking'),
   ship_date: z.string().min(1, 'กรุณาระบุวันที่ส่ง'),
   note: z.string().optional().or(z.literal('')),
+  replacement_sku: z.string().optional().or(z.literal('')),
 });
 
 export type ShipFormValues = z.infer<typeof shipFormSchema>;

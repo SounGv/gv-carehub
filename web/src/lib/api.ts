@@ -188,7 +188,7 @@ export const gvApi = {
   service: (claimNo: string, toStatus: string, actor: string, note?: string) =>
     apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('service', { claim_no: claimNo, to_status: toStatus, actor, note }),
 
-  ship: (payload: { claim_no: string; carrier: string; tracking_no: string; ship_date?: string; label_image_url?: string; actor: string; note?: string }) =>
+  ship: (payload: { claim_no: string; carrier: string; tracking_no: string; ship_date?: string; label_image_url?: string; actor: string; note?: string; replacement_sku?: string }) =>
     apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('ship', payload),
 
   linkClsbs: (payload: { claim_no: string; clsbs_id: string; bill_number?: string; sku?: string; serial_no?: string; actor: string; note?: string }) =>

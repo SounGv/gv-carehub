@@ -130,6 +130,8 @@ export default function StaffClaimDetailPage() {
                   {s.carrier} · {s.tracking_no}
                 </div>
                 <div className="text-xs text-slate-400">ส่งเมื่อ {formatThaiDateTime(s.ship_date)}</div>
+                {s.replacement_sku && <div className="text-xs text-slate-500">เปลี่ยนเป็น: {s.replacement_sku}</div>}
+                {s.note && <div className="text-xs text-slate-500">หมายเหตุ: {s.note}</div>}
               </div>
             ))}
           </CardContent>

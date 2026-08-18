@@ -49,7 +49,8 @@ const HEADERS = {
   ],
   Shipment_Log: [
     'shipment_id', 'claim_no', 'direction', 'carrier', 'tracking_no',
-    'ship_date', 'received_date', 'scanned_by', 'label_image_url', 'note'
+    'ship_date', 'received_date', 'scanned_by', 'label_image_url', 'note',
+    'replacement_sku'
   ],
   Status_History: [
     'event_id', 'claim_no', 'from_status', 'to_status', 'changed_at',
@@ -312,7 +313,8 @@ function shipClaim_(p) {
   assertTrackingAvailable_(p.carrier, p.tracking_no);
   spreadsheet_().getSheetByName(SHEETS.SHIPMENTS).appendRow([
     Utilities.getUuid(), p.claim_no, 'outbound', p.carrier, p.tracking_no,
-    p.ship_date ? new Date(p.ship_date) : new Date(), '', p.actor || 'staff', p.label_image_url || '', p.note || ''
+    p.ship_date ? new Date(p.ship_date) : new Date(), '', p.actor || 'staff', p.label_image_url || '', p.note || '',
+    p.replacement_sku || ''
   ]);
   logSync_('ship', p.claim_no, 'ok', p.carrier + ' ' + p.tracking_no);
   return updateStatus_(p, 'จัดส่งแล้ว');
