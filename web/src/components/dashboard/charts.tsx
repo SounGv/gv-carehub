@@ -28,15 +28,29 @@ export function DailyClaimsChart({ data }: { data: { date: string; count: number
       <AreaChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
         <defs>
           <linearGradient id="dailyClaimsFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CHART_PRIMARY} stopOpacity={0.32} />
-            <stop offset="100%" stopColor={CHART_PRIMARY} stopOpacity={0.02} />
+            <stop offset="0%" stopColor={CHART_PRIMARY} stopOpacity={0.22} />
+            <stop offset="100%" stopColor={CHART_PRIMARY} stopOpacity={0.015} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
         <XAxis dataKey="date" tickFormatter={(v) => formatThaiDate(v)} tick={AXIS_TEXT} axisLine={{ stroke: GRID }} tickLine={false} minTickGap={24} />
         <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
-        <Tooltip content={<ChartTooltip valueLabel="เคลม" />} labelFormatter={(v) => formatThaiDate(String(v))} />
-        <Area type="monotone" dataKey="count" stroke={CHART_PRIMARY} strokeWidth={2.5} fill="url(#dailyClaimsFill)" />
+        <Tooltip
+          content={<ChartTooltip valueLabel="เคลม" />}
+          labelFormatter={(v) => formatThaiDate(String(v))}
+          cursor={{ stroke: GRID, strokeWidth: 1 }}
+        />
+        <Area
+          type="monotone"
+          dataKey="count"
+          stroke={CHART_PRIMARY}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="url(#dailyClaimsFill)"
+          dot={false}
+          activeDot={{ r: 5, fill: CHART_PRIMARY, stroke: '#fff', strokeWidth: 2 }}
+        />
       </AreaChart>
     </ResponsiveContainer>
   );
