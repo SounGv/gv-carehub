@@ -112,6 +112,7 @@ function doPost(e) {
     else if (action === 'ship') result = shipClaim_(body);
     else if (action === 'link_clsbs') result = linkClsbs_(body);
     else if (action === 'update_service_detail') result = updateServiceDetail_(body);
+    else if (action === 'set_owner') result = setOwner_(body);
     else if (action === 'create_pending') result = createPendingReview_(body);
     else if (action === 'upload_file') result = uploadFile_(body);
     else if (action === 'supplier_rma_create_batch') result = supplierRmaCreateBatch_(body);
@@ -319,6 +320,19 @@ function updateStatus_(p, toStatus) {
   addHistory_(p.claim_no, found.old.status || '', toStatus, p.actor || 'staff', p.note || '');
   logSync_('status_change', p.claim_no, toStatus, p.note || '');
   return { ok: true, claim_no: p.claim_no, status: toStatus, updated_at: now };
+}
+
+function setOwner_(p) {
+  if (!p.claim_no) throw new Error('claim_no is required');
+  const sh = spreadsheet_().getSheetByName(SHEETS.CLAIMS);
+  const found = findRowBy_(sh, 'claim_no', p.claim_no);
+  if (!found) throw new Error('ไม่พบเลขเคส ' + p.claim_no);
+  found.obj.owner = p.owner || '';
+  found.obj.last_updated_at = new Date();
+  found.obj.last_updated_by = p.actor || 'staff';
+  writeObject_(sh, found.row, found.obj);
+  logSync_('set_owner', p.claim_no, 'ok', p.owner || '');
+  return { ok: true, claim_no: p.claim_no, owner: found.obj.owner };
 }
 
 function shipClaim_(p) {
@@ -566,7 +580,7 @@ function claimReport_(p) {
       repair_cost: Number(i.repair_cost || 0), technician_note: i.technician_note || '',
       outbound_carrier: outbound ? (outbound.carrier || '') : '', outbound_tracking_no: outbound ? (outbound.tracking_no || '') : '',
       shipped_at: c.shipped_at || '',
-      status: c.status || ''
+      status: c.status || '', owner: c.owner || ''
     };
   }).sort(function(a, b) { return new Date(b.submitted_at) - new Date(a.submitted_at); });
 

@@ -204,6 +204,9 @@ export const gvApi = {
     actor: string;
   }) => apiPost<{ ok: true; claim_no: string; updated_at: string }>('update_service_detail', payload),
 
+  setOwner: (payload: { claim_no: string; owner: string; actor: string }) =>
+    apiPost<{ ok: true; claim_no: string; owner: string }>('set_owner', payload),
+
   createPending: (payload: { tracking_no?: string; order_no?: string; phone?: string; note?: string; actor: string }) =>
     apiPost<{ ok: true; message: string }>('create_pending', payload),
 

@@ -46,6 +46,7 @@ const COLUMN_GROUPS: { title: string; columns: { key: keyof ClaimReportRow; labe
       { key: 'phone', label: 'เบอร์โทร' },
       { key: 'channel', label: 'ช่องทาง' },
       { key: 'order_no', label: 'เลขคำสั่งซื้อ' },
+      { key: 'owner', label: 'เจ้าของเคส' },
     ],
   },
   {
@@ -378,6 +379,7 @@ export function ClaimReportTab() {
                     <TableCell>{row.phone || '-'}</TableCell>
                     <TableCell>{row.channel || '-'}</TableCell>
                     <TableCell>{row.order_no || '-'}</TableCell>
+                    <TableCell>{row.owner || '-'}</TableCell>
                     <TableCell>{row.sku || '-'}</TableCell>
                     <TableCell>{row.product_name || '-'}</TableCell>
                     <TableCell>{row.model || '-'}</TableCell>

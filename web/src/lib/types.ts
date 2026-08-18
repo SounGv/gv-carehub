@@ -331,6 +331,7 @@ export interface ClaimReportRow {
   outbound_tracking_no: string;
   shipped_at: string;
   status: ClaimStatus | string;
+  owner: string;
 }
 
 export interface ClaimReportResponse {

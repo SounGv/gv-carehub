@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/claims/status-badge';
 import { StatusActions } from '@/components/staff/status-actions';
 import { HistoryLog } from '@/components/staff/history-log';
 import { ServiceDetailForm } from '@/components/staff/service-detail-form';
+import { OwnerSelect } from '@/components/staff/owner-select';
 import { ImageGallery } from '@/components/staff/image-gallery';
 import { formatCurrency, formatThaiDateTime } from '@/lib/formatters';
 
@@ -36,6 +37,8 @@ export default function StaffClaimDetailPage() {
         </div>
         <StatusBadge status={claim.status} />
       </div>
+
+      <OwnerSelect claimNo={claim.claim_no} owner={claim.owner || ''} onChanged={detail.refetch} />
 
       <Card>
         <CardHeader>
