@@ -30,7 +30,12 @@ create table if not exists claims (
 
 create table if not exists claim_items (
   item_id text primary key,
-  claim_no text references claims(claim_no) on delete cascade,
+  -- No FK to claims(claim_no): the Sheets source of truth has never
+  -- enforced this relationship, and known data-quality issues in the
+  -- 25,000+ migrated historical rows (test rows, a few orphaned items)
+  -- would make a strict FK reject an entire backfill batch over one bad
+  -- row. Indexed instead — fast lookups without hard referential integrity.
+  claim_no text,
   sku text,
   product_name text,
   model text,
@@ -70,7 +75,7 @@ create table if not exists sales_daily (
 
 create table if not exists shipment_log (
   shipment_id text primary key,
-  claim_no text references claims(claim_no) on delete cascade,
+  claim_no text, -- no FK — see claim_items.claim_no comment above
   direction text,
   carrier text,
   tracking_no text,

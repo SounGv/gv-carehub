@@ -1489,13 +1489,13 @@ function claimNoStatus_() {
 
 function claimDetail_(claimNo) {
   if (!claimNo) throw new Error('claim_no is required');
-  const claim = readObjects_(SHEETS.CLAIMS).find(function(c) { return c.claim_no === claimNo; });
+  const claim = readObjectByKey_(SHEETS.CLAIMS, 'claim_no', claimNo);
   if (!claim) throw new Error('ไม่พบเลขเคส ' + claimNo);
-  const items = readObjects_(SHEETS.ITEMS).filter(function(i) { return i.claim_no === claimNo; });
-  const shipments = readObjects_(SHEETS.SHIPMENTS).filter(function(s) { return s.claim_no === claimNo; });
-  const history = readObjects_(SHEETS.HISTORY).filter(function(h) { return h.claim_no === claimNo; })
+  const items = readObjectsByKey_(SHEETS.ITEMS, 'claim_no', claimNo);
+  const shipments = readObjectsByKey_(SHEETS.SHIPMENTS, 'claim_no', claimNo);
+  const history = readObjectsByKey_(SHEETS.HISTORY, 'claim_no', claimNo)
     .sort(function(a, b) { return new Date(a.changed_at) - new Date(b.changed_at); });
-  const clsbs = readObjects_(SHEETS.CLSBS).filter(function(l) { return l.claim_no === claimNo; });
+  const clsbs = readObjectsByKey_(SHEETS.CLSBS, 'claim_no', claimNo);
   return {
     ok: true,
     claim: {
@@ -1587,22 +1587,58 @@ function logSync_(action, claimNo, result, message) {
   ]);
 }
 
+/**
+ * Row-keyed lookups (single claim by claim_no/token, its items/shipments/history)
+ * use Sheets' own TextFinder instead of readObjects_'s "pull the whole sheet into
+ * memory, then filter in JS" pattern — with Claim_Master/Claim_Items now at
+ * 25,000+ rows post legacy-migration, a full-table read on every single-claim
+ * lookup was taking ~19s. TextFinder searches server-side and only the matching
+ * row(s) get fetched. Only valid for exact-value lookups on a known column —
+ * broad free-text search (searchClaims_) still needs a real scan.
+ */
+function findRowsByKey_(sheetName, keyField, value) {
+  const sh = spreadsheet_().getSheetByName(sheetName);
+  const headers = HEADERS[sheetName];
+  if (!sh || sh.getLastRow() < 2) return [];
+  const keyCol = headers.indexOf(keyField) + 1;
+  if (keyCol < 1) throw new Error('Unknown field: ' + keyField);
+  // Benchmarked head-to-head against reading the key column (~4s) and a full-table
+  // read (~5-6s) on this project's real 25,000+ row sheets — TextFinder.findAll()
+  // (~1-2s) wins by 3-4x. The cost here is dominated by SpreadsheetApp's per-call
+  // overhead on large ranges, not by JS-side scanning, so narrowing the read to one
+  // column doesn't help; only TextFinder's server-side search actually avoids it.
+  const matches = sh.createTextFinder(String(value)).matchEntireCell(true).findAll();
+  return matches
+    .filter(function(r) { return r.getColumn() === keyCol && r.getRow() > 1; })
+    .map(function(r) {
+      const row = r.getRow();
+      const values = sh.getRange(row, 1, 1, headers.length).getValues()[0];
+      const obj = {};
+      headers.forEach(function(h, i) { obj[h] = values[i]; });
+      return { row: row, obj: obj };
+    });
+}
+
+function readObjectByKey_(sheetName, keyField, value) {
+  const found = findRowsByKey_(sheetName, keyField, value)[0];
+  return found ? found.obj : null;
+}
+
+function readObjectsByKey_(sheetName, keyField, value) {
+  return findRowsByKey_(sheetName, keyField, value).map(function(r) { return r.obj; });
+}
+
 function findClaimByToken_(token) {
   const hash = sha256_(token);
-  return readObjects_(SHEETS.CLAIMS).find(function(c) { return c.public_token_hash === hash; });
+  return readObjectByKey_(SHEETS.CLAIMS, 'public_token_hash', hash);
 }
 
 function findRowBy_(sh, key, value) {
   const headers = HEADERS[sh.getName()];
   const col = headers.indexOf(key);
   if (col < 0) throw new Error('Unknown field: ' + key);
-  const values = sh.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][col]) === String(value)) {
-      const obj = {}; headers.forEach(function(h, j) { obj[h] = values[i][j]; });
-      return { row: i + 1, obj: obj, old: Object.assign({}, obj) };
-    }
-  }
+  const found = findRowsByKey_(sh.getName(), key, value)[0];
+  if (found) return { row: found.row, obj: found.obj, old: Object.assign({}, found.obj) };
   return null;
 }
 
@@ -1630,7 +1666,7 @@ function staffClaim_(claim, items, shipments) {
 }
 
 function sanitizePublicClaim_(claim) {
-  const items = readObjects_(SHEETS.ITEMS).filter(function(i) { return i.claim_no === claim.claim_no; });
+  const items = readObjectsByKey_(SHEETS.ITEMS, 'claim_no', claim.claim_no);
   return {
     claim_no: claim.claim_no, status: claim.status, submitted_at: claim.submitted_at,
     received_at: claim.received_at, completed_at: claim.completed_at, shipped_at: claim.shipped_at,
@@ -1701,4 +1737,208 @@ function json_(data) {
   return ContentService.createTextOutput(JSON.stringify(data, function(key, value) {
     return value instanceof Date ? value.toISOString() : value;
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ---------------- Supabase Phase-1 migration: one-time backfill ----------------
+ * Dashboard/Reports now query Supabase directly (see supabase/*.sql) for
+ * speed. This pushes Claim_Master/Claim_Items/Products/Sales_Daily/
+ * Shipment_Log/Config into Supabase so those RPCs have real data to serve.
+ * One-way only (Sheets -> Supabase) — Sheets stays the source of truth for
+ * writes in Phase 1; nothing here ever reads from or writes back based on
+ * Supabase.
+ *
+ * SETUP (one time, before running anything below):
+ * Apps Script editor > Project Settings (gear icon) > Script Properties >
+ * add property SUPABASE_SERVICE_ROLE_KEY = <the secret key from Supabase
+ * Project Settings > API Keys>. This key must NEVER be pasted into this
+ * file, into chat, or committed to git — Script Properties is the only
+ * place it lives. It bypasses the anon-key lockdown in 001_schema.sql on
+ * purpose, so only this trusted server-side context should ever hold it.
+ *
+ * TO RUN: in the Apps Script editor, pick backfillAllToSupabase_ from the
+ * function dropdown and click Run. Every backfill*ToSupabase_ function is
+ * an idempotent upsert (safe to re-run, e.g. if one table's batch fails or
+ * the whole run hits the 6-minute execution limit) — if backfillAllToSupabase_
+ * times out partway, just run the remaining individual backfill*_ functions
+ * one at a time instead (order: Products/Config first, then Claims, then
+ * Claim_Items/Shipment_Log, then Sales_Daily last).
+ */
+
+const SUPABASE_URL_ = 'https://hdrmskceiwjlnbkoahzw.supabase.co';
+
+function supabaseServiceKey_() {
+  const key = PropertiesService.getScriptProperties().getProperty('SUPABASE_SERVICE_ROLE_KEY');
+  if (!key) throw new Error('ตั้งค่า Script Property: SUPABASE_SERVICE_ROLE_KEY ก่อนใช้งาน (Project Settings > Script Properties)');
+  return key;
+}
+
+/** Upserts rows into a Supabase table in batches — keeps each request well
+ * under Apps Script's payload/time limits and makes a partial failure
+ * (one bad batch) leave everything before it already committed. */
+function supabaseUpsertBatch_(table, rows, batchSize) {
+  if (!rows.length) return;
+  const key = supabaseServiceKey_();
+  const size = batchSize || 500;
+  for (let i = 0; i < rows.length; i += size) {
+    const batch = rows.slice(i, i + size);
+    const res = UrlFetchApp.fetch(SUPABASE_URL_ + '/rest/v1/' + table, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        apikey: key,
+        Authorization: 'Bearer ' + key,
+        Prefer: 'resolution=merge-duplicates'
+      },
+      payload: JSON.stringify(batch),
+      muteHttpExceptions: true
+    });
+    const code = res.getResponseCode();
+    if (code >= 300) {
+      throw new Error('Supabase upsert ล้มเหลว (' + table + ', แถวที่ ' + i + '-' + (i + batch.length) + '): HTTP ' + code + ' - ' + res.getContentText());
+    }
+    Utilities.sleep(150);
+  }
+}
+
+/** A Sheets date cell is a real Date object when the column is
+ * date-formatted, or '' when genuinely blank — never send anything else
+ * (stray text, an invalid Date) into a timestamptz column as if it were
+ * real. */
+function sbDate_(v) {
+  if (v instanceof Date && !isNaN(v)) return v.toISOString();
+  return null;
+}
+
+function sbNum_(v) {
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+
+function sbText_(v) {
+  return v === undefined || v === null ? '' : String(v);
+}
+
+function backfillProductsToSupabase_() {
+  const rows = readObjects_(SHEETS.PRODUCTS).map(function(p) {
+    return {
+      sku: sbText_(p.sku),
+      product_name: sbText_(p.product_name),
+      brand: sbText_(p.brand),
+      model: sbText_(p.model),
+      standard_value: sbNum_(p.standard_value),
+      active: String(p.active).toUpperCase() !== 'FALSE'
+    };
+  }).filter(function(r) { return r.sku; });
+  supabaseUpsertBatch_('products', rows);
+  return rows.length;
+}
+
+function backfillConfigToSupabase_() {
+  const rows = readObjects_(SHEETS.CONFIG).map(function(c) {
+    return { key: sbText_(c.key), value: sbText_(c.value) };
+  }).filter(function(r) { return r.key; });
+  supabaseUpsertBatch_('config', rows);
+  return rows.length;
+}
+
+function backfillClaimsToSupabase_() {
+  const rows = readObjects_(SHEETS.CLAIMS).map(function(c) {
+    return {
+      claim_no: sbText_(c.claim_no),
+      claim_id: sbText_(c.claim_id),
+      submitted_at: sbDate_(c.submitted_at),
+      channel: sbText_(c.channel),
+      order_no: sbText_(c.order_no),
+      customer_name: sbText_(c.customer_name),
+      phone: sbText_(c.phone),
+      email: sbText_(c.email),
+      address: sbText_(c.address),
+      status: sbText_(c.status),
+      public_token_hash: sbText_(c.public_token_hash),
+      received_at: sbDate_(c.received_at),
+      completed_at: sbDate_(c.completed_at),
+      shipped_at: sbDate_(c.shipped_at),
+      product_value: sbNum_(c.product_value),
+      owner: sbText_(c.owner),
+      last_updated_at: sbDate_(c.last_updated_at),
+      last_updated_by: sbText_(c.last_updated_by),
+      note: sbText_(c.note)
+    };
+  }).filter(function(r) { return r.claim_no; });
+  supabaseUpsertBatch_('claims', rows);
+  return rows.length;
+}
+
+function backfillClaimItemsToSupabase_() {
+  const rows = readObjects_(SHEETS.ITEMS).map(function(i) {
+    return {
+      item_id: sbText_(i.item_id),
+      claim_no: sbText_(i.claim_no),
+      sku: sbText_(i.sku),
+      product_name: sbText_(i.product_name),
+      model: sbText_(i.model),
+      serial_no: sbText_(i.serial_no),
+      issue_group: sbText_(i.issue_group),
+      issue_detail: sbText_(i.issue_detail),
+      quantity: sbNum_(i.quantity || 1),
+      product_value: sbNum_(i.product_value),
+      clsbs_id: sbText_(i.clsbs_id),
+      inspection_result: sbText_(i.inspection_result),
+      warranty_type: sbText_(i.warranty_type),
+      resolution_method: sbText_(i.resolution_method),
+      repair_cost: sbNum_(i.repair_cost),
+      technician_note: sbText_(i.technician_note),
+      product_image_urls: sbText_(i.product_image_urls),
+      label_image_urls: sbText_(i.label_image_urls),
+      service_updated_at: sbDate_(i.service_updated_at),
+      service_updated_by: sbText_(i.service_updated_by)
+    };
+  }).filter(function(r) { return r.item_id; });
+  supabaseUpsertBatch_('claim_items', rows);
+  return rows.length;
+}
+
+function backfillShipmentLogToSupabase_() {
+  const rows = readObjects_(SHEETS.SHIPMENTS).map(function(s) {
+    return {
+      shipment_id: sbText_(s.shipment_id),
+      claim_no: sbText_(s.claim_no),
+      direction: sbText_(s.direction),
+      carrier: sbText_(s.carrier),
+      tracking_no: sbText_(s.tracking_no),
+      ship_date: sbDate_(s.ship_date),
+      received_date: sbDate_(s.received_date),
+      scanned_by: sbText_(s.scanned_by),
+      label_image_url: sbText_(s.label_image_url),
+      note: sbText_(s.note)
+    };
+  }).filter(function(r) { return r.shipment_id; });
+  supabaseUpsertBatch_('shipment_log', rows);
+  return rows.length;
+}
+
+function backfillSalesDailyToSupabase_() {
+  const rows = readObjects_(SHEETS.SALES).map(function(s) {
+    const iso = sbDate_(s.date);
+    return {
+      sale_date: iso ? iso.slice(0, 10) : null,
+      sku: sbText_(s.sku),
+      qty_sold: sbNum_(s.qty_sold),
+      sales_value: sbNum_(s.sales_value)
+    };
+  }).filter(function(r) { return r.sale_date && r.sku; });
+  supabaseUpsertBatch_('sales_daily', rows);
+  return rows.length;
+}
+
+function backfillAllToSupabase_() {
+  const counts = {};
+  counts.products = backfillProductsToSupabase_();
+  counts.config = backfillConfigToSupabase_();
+  counts.claims = backfillClaimsToSupabase_();
+  counts.claim_items = backfillClaimItemsToSupabase_();
+  counts.shipment_log = backfillShipmentLogToSupabase_();
+  counts.sales_daily = backfillSalesDailyToSupabase_();
+  Logger.log(JSON.stringify(counts));
+  return counts;
 }
