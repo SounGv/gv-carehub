@@ -20,7 +20,6 @@ import type {
   LegacyServiceLogRow,
   MetaResponse,
   ReportResponse,
-  ReserveClaimNoResponse,
   SearchResponse,
   SupplierRmaAnalyticsResponse,
   SupplierRmaBatchDetailResponse,
@@ -182,8 +181,6 @@ export const gvApi = {
   claimDetail: (claimNo: string) => apiGet<ClaimDetailResponse>('claim_detail', { claim_no: claimNo }),
 
   createClaim: (payload: CreateClaimPayload) => apiPost<CreateClaimResult>('create_claim', payload as unknown as Record<string, unknown>),
-
-  reserveClaimNo: (actor: string) => apiPost<ReserveClaimNoResponse>('reserve_claim_no', { actor }),
 
   receive: (claimNo: string, actor: string, note?: string) =>
     apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('receive', { claim_no: claimNo, actor, note }),

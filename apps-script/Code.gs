@@ -106,7 +106,6 @@ function doPost(e) {
     let result;
     if (action === 'setup') result = setupSheets_();
     else if (action === 'create_claim') result = createClaim_(body);
-    else if (action === 'reserve_claim_no') result = reserveClaimNo_(body);
     else if (action === 'receive') result = updateStatus_(body, 'รับเข้าคลังแล้ว');
     else if (action === 'service') result = updateStatus_(body, body.to_status || 'กำลังดำเนินการ');
     else if (action === 'ship') result = shipClaim_(body);
@@ -223,18 +222,6 @@ function createClaim_(p) {
     addHistory_(claimNo, '', status, 'customer', 'สร้างเคส');
     logSync_('create_claim', claimNo, 'ok', 'สร้างเคสใหม่ช่องทาง ' + (p.channel || ''));
     return { ok: true, claim_no: claimNo, claim_id: claimId, public_token: publicToken };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function reserveClaimNo_(p) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const claimNo = nextClaimNo_(spreadsheet_());
-    logSync_('reserve_claim_no', claimNo, 'ok', 'พนักงานขอเลขเคสถัดไป (' + (p && p.actor || 'staff') + ')');
-    return { ok: true, claim_no: claimNo };
   } finally {
     lock.releaseLock();
   }
