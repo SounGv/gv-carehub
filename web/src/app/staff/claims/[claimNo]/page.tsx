@@ -11,6 +11,7 @@ import { StatusActions } from '@/components/staff/status-actions';
 import { HistoryLog } from '@/components/staff/history-log';
 import { ServiceDetailForm } from '@/components/staff/service-detail-form';
 import { OwnerSelect } from '@/components/staff/owner-select';
+import { CopyAddressButton } from '@/components/staff/copy-address-button';
 import { ImageGallery } from '@/components/staff/image-gallery';
 import { formatCurrency, formatThaiDateTime } from '@/lib/formatters';
 
@@ -61,26 +62,32 @@ export default function StaffClaimDetailPage() {
               <User className="h-4 w-4" /> ข้อมูลลูกค้าและคำสั่งซื้อ
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <User className="h-3.5 w-3.5 text-slate-400" /> {claim.customer_name}
+          <CardContent className="space-y-2.5 text-sm">
+            <div className="flex items-center gap-2 text-base font-bold text-brand-charcoal">
+              <User className="h-4 w-4 flex-none text-slate-400" /> {claim.customer_name}
             </div>
-            <div className="flex items-center gap-2">
-              <Phone className="h-3.5 w-3.5 text-slate-400" /> {claim.phone}
+            <div className="flex items-center gap-2 text-base font-semibold text-brand-charcoal">
+              <Phone className="h-4 w-4 flex-none text-slate-400" /> {claim.phone}
             </div>
             {claim.email && (
               <div className="flex items-center gap-2">
-                <Mail className="h-3.5 w-3.5 text-slate-400" /> {claim.email}
+                <Mail className="h-3.5 w-3.5 flex-none text-slate-400" /> {claim.email}
               </div>
             )}
             <div className="flex items-center gap-2">
-              <ShoppingBag className="h-3.5 w-3.5 text-slate-400" /> {claim.channel || '-'} · {claim.order_no}
+              <ShoppingBag className="h-3.5 w-3.5 flex-none text-slate-400" /> {claim.channel || '-'} · {claim.order_no}
             </div>
             <div className="flex items-center gap-2">
-              <Wallet className="h-3.5 w-3.5 text-slate-400" /> มูลค่าสินค้าเคลม {formatCurrency(claim.product_value)}
+              <Wallet className="h-3.5 w-3.5 flex-none text-slate-400" /> มูลค่าสินค้าเคลม {formatCurrency(claim.product_value)}
             </div>
-            <div className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-3.5 w-3.5 flex-none text-slate-400" /> {claim.address || '-'}
+            <div className="flex items-start gap-2 rounded-lg bg-slate-50 p-2.5">
+              <MapPin className="mt-0.5 h-4 w-4 flex-none text-slate-400" />
+              <div className="flex-1 space-y-2">
+                <div className="text-base font-medium leading-snug text-brand-charcoal">{claim.address || '-'}</div>
+                {claim.address && (
+                  <CopyAddressButton text={`${claim.customer_name}\n${claim.phone}\n${claim.address}`} />
+                )}
+              </div>
             </div>
             {claim.note && <div className="rounded-lg bg-slate-50 p-2 text-xs text-slate-500">หมายเหตุ: {claim.note}</div>}
           </CardContent>
