@@ -4,7 +4,8 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { LayoutDashboard, FileText, PackageSearch, Truck, Boxes, FileBarChart, Menu, X, Pencil, Check, Link2 } from 'lucide-react';
+import { LayoutDashboard, FileText, PackageSearch, Truck, Boxes, FileBarChart, Menu, X, Check, Link2 } from 'lucide-react';
+import { STAFF_NAMES } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
 
@@ -135,7 +136,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, rename } = useAuth();
   const [open, setOpen] = useState(false);
-  const [editingName, setEditingName] = useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -175,27 +175,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-auto space-y-1.5 border-t border-white/10 pt-4">
-          {editingName ? (
-            <input
-              autoFocus
-              defaultValue={session.name}
-              onBlur={(e) => {
-                rename(e.target.value);
-                setEditingName(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-              }}
-              className="w-full rounded-md border border-white/20 bg-white/10 px-2 py-1 text-sm text-white outline-none"
-            />
-          ) : (
-            <button
-              onClick={() => setEditingName(true)}
-              className="flex items-center gap-1.5 text-sm font-medium text-white hover:text-brand-lime"
-            >
-              <Pencil className="h-3 w-3 flex-none text-white/50" /> {session.name}
-            </button>
-          )}
+          <select
+            value={STAFF_NAMES.includes(session.name) ? session.name : ''}
+            onChange={(e) => rename(e.target.value)}
+            className="w-full rounded-md border border-white/20 bg-white/10 px-2 py-1.5 text-sm font-medium text-white outline-none"
+          >
+            <option value="" disabled className="text-brand-charcoal">
+              เลือกชื่อพนักงาน
+            </option>
+            {STAFF_NAMES.map((name) => (
+              <option key={name} value={name} className="text-brand-charcoal">
+                {name}
+              </option>
+            ))}
+          </select>
           <div className="text-xs text-white/40">ชื่อนี้จะบันทึกในประวัติการดำเนินการ</div>
         </div>
       </aside>

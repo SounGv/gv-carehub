@@ -18,6 +18,11 @@ export interface AuthSession {
   name: string;
 }
 
+/** Preset staff names — picking from this list (instead of free typing) keeps
+ * the "actor" attribution on every action (receive/test/ship/status change)
+ * spelled consistently, so "who did this" is actually reliable to look up. */
+export const STAFF_NAMES = ['ME_lalana', 'Dusida', 'Tik', 'Natza', 'Jo', 'Deer', 'Au', 'Aun'];
+
 const STORAGE_KEY = 'gv_carehub_session_v1';
 export const DEFAULT_ACTOR_NAME = 'พนักงาน';
 
