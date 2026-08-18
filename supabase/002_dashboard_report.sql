@@ -106,6 +106,13 @@ begin
           group by 1
         ) x
       ),
+      'by_owner', (
+        select coalesce(json_agg(json_build_object('owner', owner, 'count', cnt) order by cnt desc), '[]'::json)
+        from (
+          select coalesce(nullif(owner, ''), 'ยังไม่ระบุ') as owner, count(*) as cnt
+          from t_filtered_claims group by 1
+        ) x
+      ),
       'defect_rate_vs_sales', (
         select case when sales_total > 0 then round((claimed_qty::numeric / sales_total::numeric * 100), 2) else null end
         from (

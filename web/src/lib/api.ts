@@ -27,6 +27,7 @@ import type {
   SupplierRmaCandidateRow,
   SupplierRmaCreateBatchResult,
 } from './types';
+import { supabase } from './supabase';
 
 export class GvApiError extends Error {
   constructor(message: string) {
@@ -166,7 +167,25 @@ export const gvApi = {
 
   claimReport: (filters: ClaimReportFilters) => apiGet<ClaimReportResponse>('claim_report', filters as Record<string, string | undefined>),
 
-  dashboard: (filters: DashboardFilters) => apiGet<DashboardResponse>('dashboard', filters as Record<string, string | undefined>),
+  dashboard: async (filters: DashboardFilters): Promise<DashboardResponse> => {
+    // Reads Supabase directly (a real indexed Postgres query) instead of the
+    // Apps Script `dashboard` action — that path re-scans the Sheets-backed
+    // Claim_Master/Claim_Items on every request and carries ~1.5-2s of fixed
+    // Apps Script Web App overhead on top, regardless of how little data
+    // matches. Falls back to Apps Script only if Supabase isn't configured.
+    if (supabase) {
+      const { data, error } = await supabase.rpc('dashboard_report', {
+        p_from: filters.from || null,
+        p_to: filters.to || null,
+        p_sku: filters.sku || null,
+        p_status: filters.status || null,
+        p_channel: filters.channel || null,
+      });
+      if (error) throw new GvApiError(error.message);
+      return data as DashboardResponse;
+    }
+    return apiGet<DashboardResponse>('dashboard', filters as Record<string, string | undefined>);
+  },
 
   legacyReport: () => apiGet<LegacyReportResponse>('legacy_report'),
 
