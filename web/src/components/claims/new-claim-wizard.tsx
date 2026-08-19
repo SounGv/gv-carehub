@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, Loader2, Send } from 'lucide-react';
 import { newClaimSchema, type NewClaimValues } from '@/lib/validators';
 import { useMeta } from '@/hooks/use-meta';
 import { gvApi, GvApiError } from '@/lib/api';
-import { fileToBase64 } from '@/lib/upload';
+import { compressImageForUpload } from '@/lib/upload';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
@@ -28,13 +28,17 @@ const STEP_FIELDS: Record<number, (keyof NewClaimValues | 'address')[]> = {
 /** Uploads every file concurrently instead of one-at-a-time — each upload is its
  * own Apps Script round-trip (Drive can take a couple seconds per file), and
  * doing them all in parallel is what actually makes claim submission fast when
- * a customer attaches photos, rather than paying that cost N times over. */
+ * a customer attaches photos, rather than paying that cost N times over. Each
+ * file is also re-encoded down from phone-camera resolution first (see
+ * compressImageForUpload) — that's what was actually making submission feel
+ * stuck on a spinner, since a multi-MB base64 payload over an Apps Script Web
+ * App round-trip is far slower than the same photo resized for a defect report. */
 async function uploadImages(files: File[], imageType: string): Promise<string[]> {
   const results = await Promise.all(
     files.map(async (file) => {
       try {
-        const base64 = await fileToBase64(file);
-        const result = await gvApi.uploadFile({ filename: file.name, mime_type: file.type || 'image/jpeg', data_base64: base64, image_type: imageType });
+        const { base64, mimeType, filename } = await compressImageForUpload(file);
+        const result = await gvApi.uploadFile({ filename, mime_type: mimeType, data_base64: base64, image_type: imageType });
         return result.url;
       } catch (err) {
         const message = err instanceof GvApiError ? err.message : 'อัปโหลดรูปไม่สำเร็จ';
