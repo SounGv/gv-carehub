@@ -14,21 +14,23 @@ export function StatusTimeline({ steps }: { steps: TimelineStep[] }) {
         const done = Boolean(step.value);
         const isLast = i === steps.length - 1;
         return (
-          <div key={step.label} className="flex gap-3">
+          <div key={step.label} className="flex gap-3.5">
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  'flex h-7 w-7 flex-none items-center justify-center rounded-full',
-                  done ? 'bg-brand-lime text-brand-charcoal' : 'bg-slate-100 text-slate-300',
+                  'flex h-10 w-10 flex-none items-center justify-center rounded-full border-2',
+                  done ? 'border-brand-lime bg-brand-lime text-brand-charcoal' : 'border-slate-300 bg-white text-slate-400',
                 )}
               >
-                {done ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
+                {done ? <Check className="h-5 w-5" strokeWidth={3} /> : <Circle className="h-4 w-4" />}
               </div>
-              {!isLast && <div className={cn('w-0.5 flex-1', done ? 'bg-brand-lime' : 'bg-slate-200')} style={{ minHeight: 28 }} />}
+              {!isLast && <div className={cn('w-1 flex-1 rounded-full', done ? 'bg-brand-lime' : 'bg-slate-200')} style={{ minHeight: 30 }} />}
             </div>
-            <div className="pb-6">
-              <div className={cn('text-sm font-medium', done ? 'text-foreground' : 'text-slate-400')}>{step.label}</div>
-              <div className="text-xs text-slate-400">{done ? formatThaiDateTime(step.value) : 'ยังไม่ถึงขั้นตอนนี้'}</div>
+            <div className="pb-7">
+              <div className={cn('text-base font-bold', done ? 'text-brand-charcoal' : 'text-slate-400')}>{step.label}</div>
+              <div className={cn('text-sm', done ? 'text-slate-600' : 'text-slate-400')}>
+                {done ? formatThaiDateTime(step.value) : 'ยังไม่ถึงขั้นตอนนี้'}
+              </div>
             </div>
           </div>
         );
