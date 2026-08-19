@@ -107,6 +107,7 @@ export default function StaffClaimDetailPage() {
                 </div>
                 <div className="text-slate-500">รุ่น: {item.model || '-'}</div>
                 <div className="text-slate-500">Serial: {item.serial_no || 'ไม่ระบุ'}</div>
+                {claim.warranty_remaining && <div className="text-slate-500">ประกันคงเหลือ: {claim.warranty_remaining}</div>}
                 <div className="text-slate-500">กลุ่มปัญหา: {item.issue_group}</div>
                 <div className="rounded-lg bg-slate-50 p-2 text-xs">{item.issue_detail}</div>
               </>

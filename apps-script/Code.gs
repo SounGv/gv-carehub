@@ -14,6 +14,10 @@
  * technician_note, product_image_urls, label_image_urls,
  * service_updated_at, service_updated_by
  *
+ * Claim_Master also has one additive trailing column: warranty_remaining
+ * (remaining warranty period, entered by whoever receives the item in —
+ * set via the `receive` action's warranty_remaining param).
+ *
  * "รอตรวจสอบ" (unmatched package) records and general audit-trail entries
  * both reuse Sync_Log (already part of the base schema) instead of adding
  * a new sheet.
@@ -38,7 +42,8 @@ const HEADERS = {
     'claim_no', 'claim_id', 'submitted_at', 'channel', 'order_no',
     'customer_name', 'phone', 'email', 'address', 'status',
     'public_token_hash', 'received_at', 'completed_at', 'shipped_at',
-    'product_value', 'owner', 'last_updated_at', 'last_updated_by', 'note'
+    'product_value', 'owner', 'last_updated_at', 'last_updated_by', 'note',
+    'warranty_remaining'
   ],
   Claim_Items: [
     'claim_no', 'item_id', 'sku', 'product_name', 'model', 'serial_no',
@@ -315,6 +320,7 @@ function updateStatus_(p, toStatus) {
   // so re-assigning stays a deliberate edit via OwnerSelect, not something a
   // later status change can accidentally clobber.
   if (!found.obj.owner && p.actor) found.obj.owner = p.actor;
+  if (p.warranty_remaining !== undefined) found.obj.warranty_remaining = p.warranty_remaining;
   found.obj.status = toStatus;
   found.obj.last_updated_at = now;
   found.obj.last_updated_by = p.actor || 'staff';
@@ -1550,7 +1556,8 @@ function claimDetail_(claimNo) {
       customer_name: claim.customer_name, phone: claim.phone, email: claim.email, address: claim.address,
       status: claim.status, submitted_at: claim.submitted_at, received_at: claim.received_at,
       completed_at: claim.completed_at, shipped_at: claim.shipped_at, product_value: claim.product_value,
-      owner: claim.owner, note: claim.note, last_updated_at: claim.last_updated_at, last_updated_by: claim.last_updated_by
+      owner: claim.owner, note: claim.note, last_updated_at: claim.last_updated_at, last_updated_by: claim.last_updated_by,
+      warranty_remaining: claim.warranty_remaining || ''
     },
     items: items,
     shipments: shipments,
@@ -1708,7 +1715,8 @@ function staffClaim_(claim, items, shipments) {
     customer_name: claim.customer_name, phone: claim.phone, address: claim.address,
     status: claim.status, submitted_at: claim.submitted_at,
     received_at: claim.received_at, completed_at: claim.completed_at, shipped_at: claim.shipped_at,
-    product_value: claim.product_value, items: items || [], shipments: shipments || []
+    product_value: claim.product_value, warranty_remaining: claim.warranty_remaining || '',
+    items: items || [], shipments: shipments || []
   };
 }
 

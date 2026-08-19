@@ -11,7 +11,7 @@ import { useAuth } from '@/components/layout/auth-provider';
 import { serviceDetailSchema, type ServiceDetailValues } from '@/lib/validators';
 import type { ClaimItem } from '@/lib/types';
 
-const WARRANTY_TYPES = ['ในประกัน', 'นอกประกัน', 'ประกันเคลมเทียบเท่า', 'อื่นๆ'];
+const WARRANTY_TYPES = ['ในประกัน', 'นอกประกัน', 'อื่นๆ'];
 const RESOLUTION_METHODS = ['ซ่อม', 'เปลี่ยนสินค้าใหม่', 'คืนเงิน', 'ส่งเคลมผู้ผลิต', 'อื่นๆ'];
 
 export function ServiceDetailForm({ claimNo, item, onSaved }: { claimNo: string; item: ClaimItem; onSaved: () => void }) {

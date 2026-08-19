@@ -201,8 +201,13 @@ export const gvApi = {
 
   createClaim: (payload: CreateClaimPayload) => apiPost<CreateClaimResult>('create_claim', payload as unknown as Record<string, unknown>),
 
-  receive: (claimNo: string, actor: string, note?: string) =>
-    apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('receive', { claim_no: claimNo, actor, note }),
+  receive: (claimNo: string, actor: string, note?: string, warrantyRemaining?: string) =>
+    apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('receive', {
+      claim_no: claimNo,
+      actor,
+      note,
+      warranty_remaining: warrantyRemaining,
+    }),
 
   service: (claimNo: string, toStatus: string, actor: string, note?: string) =>
     apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('service', { claim_no: claimNo, to_status: toStatus, actor, note }),

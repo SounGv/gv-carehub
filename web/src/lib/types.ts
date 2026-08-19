@@ -90,6 +90,7 @@ export interface StaffClaim {
   completed_at?: string;
   shipped_at?: string;
   product_value: number;
+  warranty_remaining?: string;
   items: ClaimItem[];
   shipments: ShipmentLog[];
   matched_fields?: string[];
@@ -113,6 +114,7 @@ export interface ClaimDetail {
   note: string;
   last_updated_at: string;
   last_updated_by: string;
+  warranty_remaining: string;
 }
 
 export interface PublicClaimItem {

@@ -10,6 +10,7 @@ import { ScanInput } from '@/components/staff/scan-input';
 import { ClaimCard, isNameOnlyMatch } from '@/components/staff/claim-card';
 import { PendingReviewForm } from '@/components/staff/pending-review-form';
 import { Button } from '@/components/ui/button';
+import { Input, Label } from '@/components/ui/input';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import type { StaffClaim } from '@/lib/types';
 
@@ -22,12 +23,14 @@ export default function StaffReceivePage() {
   const [isReceiving, setIsReceiving] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showPending, setShowPending] = useState(false);
+  const [warrantyRemaining, setWarrantyRemaining] = useState('');
 
   function resetSearch() {
     setQuery('');
     setResults(null);
     setSelected(null);
     setShowPending(false);
+    setWarrantyRemaining('');
   }
 
   async function handleSearch(q: string) {
@@ -35,6 +38,7 @@ export default function StaffReceivePage() {
     setSearchError(null);
     setSelected(null);
     setShowPending(false);
+    setWarrantyRemaining('');
     setQuery(q);
     try {
       const res = await gvApi.search(q);
@@ -52,7 +56,7 @@ export default function StaffReceivePage() {
     if (!session) return;
     setIsReceiving(true);
     try {
-      await gvApi.receive(claim.claim_no, session.name);
+      await gvApi.receive(claim.claim_no, session.name, undefined, warrantyRemaining || undefined);
       toast.success(`รับเข้าคลังเคส ${claim.claim_no} เรียบร้อย`);
       resetSearch();
     } catch (err) {
@@ -104,25 +108,36 @@ export default function StaffReceivePage() {
           claim={selected}
           highlight
           footer={
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Link href={`/staff/claims/${selected.claim_no}`} className="text-xs text-slate-500 underline">
-                ดูรายละเอียดเคส
-              </Link>
-              <div className="flex gap-2">
-                {results && results.length > 1 && (
-                  <Button variant="outline" size="sm" onClick={() => setSelected(null)}>
-                    เลือกเคสอื่น
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="warranty_remaining">ประกันคงเหลือ</Label>
+                <Input
+                  id="warranty_remaining"
+                  placeholder="เช่น 6 เดือน, หมดประกันแล้ว"
+                  value={warrantyRemaining}
+                  onChange={(e) => setWarrantyRemaining(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link href={`/staff/claims/${selected.claim_no}`} className="text-xs text-slate-500 underline">
+                  ดูรายละเอียดเคส
+                </Link>
+                <div className="flex gap-2">
+                  {results && results.length > 1 && (
+                    <Button variant="outline" size="sm" onClick={() => setSelected(null)}>
+                      เลือกเคสอื่น
+                    </Button>
+                  )}
+                  <Button
+                    variant="success"
+                    size="sm"
+                    loading={isReceiving}
+                    disabled={isNameOnlyMatch(selected)}
+                    onClick={() => handleReceive(selected)}
+                  >
+                    <PackageCheck className="h-4 w-4" /> รับเข้าคลัง
                   </Button>
-                )}
-                <Button
-                  variant="success"
-                  size="sm"
-                  loading={isReceiving}
-                  disabled={isNameOnlyMatch(selected)}
-                  onClick={() => handleReceive(selected)}
-                >
-                  <PackageCheck className="h-4 w-4" /> รับเข้าคลัง
-                </Button>
+                </div>
               </div>
             </div>
           }
