@@ -31,6 +31,7 @@ export function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<ThaiAddressMatch[]>([]);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -40,11 +41,21 @@ export function AddressAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
+
+  // The dataset is ~86k rows scanned by regex on every call — running that on
+  // every keystroke is what made typing feel laggy, so it only fires after a
+  // short pause instead. The input's own value update above is instant either way.
   function handleChange(text: string) {
     onChange(text);
-    const results = searchThaiAddress(field, text);
-    setSuggestions(results);
-    setOpen(results.length > 0);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const results = searchThaiAddress(field, text);
+      setSuggestions(results);
+      setOpen(results.length > 0);
+    }, 200);
   }
 
   function handleSelect(match: ThaiAddressMatch) {

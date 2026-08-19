@@ -30,11 +30,24 @@ const DEFAULT_ZOOM = 6;
  * whatever comes back wrong or blank before submitting. */
 function mapNominatimAddress(addr: Record<string, string> | undefined): MapAddressResult {
   if (!addr) return {};
+  const subdistrictCandidates = [addr.suburb, addr.village, addr.hamlet, addr.quarter, addr.neighbourhood].filter(Boolean) as string[];
+  const districtCandidates = [addr.city_district, addr.county, addr.district, addr.town].filter(Boolean) as string[];
+  // Bangkok's เขต/แขวง terms are an explicit tell for which admin level a value
+  // actually is, regardless of which raw OSM key it landed in — e.g. "เขตยานนาวา"
+  // sometimes comes back under `suburb`, which would otherwise wrongly land in
+  // ตำบล/แขวง instead of อำเภอ/เขต. Only reject the raw first candidate when it's
+  // itself mislabeled with the other level's prefix — a genuinely different,
+  // correctly-tagged value in the other field must still come through.
+  const allCandidates = [...subdistrictCandidates, ...districtCandidates];
+  const khwaeng = allCandidates.find((c) => c.startsWith('แขวง'));
+  const khet = allCandidates.find((c) => c.startsWith('เขต'));
+  const rawTambon = subdistrictCandidates[0];
+  const rawAmphoe = districtCandidates[0];
   return {
     house_no: addr.house_number || '',
     road: addr.road || '',
-    tambon: addr.suburb || addr.village || addr.hamlet || addr.quarter || addr.neighbourhood || '',
-    amphoe: addr.city_district || addr.county || addr.district || addr.town || '',
+    tambon: khwaeng || (rawTambon && !rawTambon.startsWith('เขต') ? rawTambon : '') || '',
+    amphoe: khet || (rawAmphoe && !rawAmphoe.startsWith('แขวง') ? rawAmphoe : '') || '',
     province: addr.state || addr.province || '',
     zipcode: addr.postcode || '',
   };
