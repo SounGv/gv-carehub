@@ -19,9 +19,7 @@ export type CustomerStepValues = z.infer<typeof customerStepSchema>;
 export const productStepSchema = z.object({
   sku: z.string().optional().or(z.literal('')),
   product_name: z.string().min(1, 'กรุณาระบุชื่อสินค้า'),
-  model: z.string().optional().or(z.literal('')),
   serial_no: z.string().optional().or(z.literal('')), // Optional: not every product carries a serial number
-  issue_group: z.string().min(1, 'กรุณาเลือกกลุ่มปัญหา'),
   issue_detail: z.string().min(3, 'กรุณาระบุรายละเอียดอาการเสีย'),
   carrier_in: z.string().optional().or(z.literal('')),
   tracking_no_in: z.string().optional().or(z.literal('')),

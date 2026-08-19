@@ -387,7 +387,7 @@ export interface CreateClaimPayload {
     product_name: string;
     model?: string;
     serial_no?: string;
-    issue_group: string;
+    issue_group?: string;
     issue_detail: string;
     quantity?: number;
     product_value?: number;

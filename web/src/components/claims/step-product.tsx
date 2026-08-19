@@ -8,7 +8,6 @@ import type { NewClaimValues } from '@/lib/validators';
 import type { MetaResponse } from '@/lib/types';
 
 export function StepProduct({
-  issueGroups,
   carriers,
   products,
   productImages,
@@ -16,7 +15,6 @@ export function StepProduct({
   labelImages,
   onLabelImagesChange,
 }: {
-  issueGroups: string[];
   carriers: string[];
   products: MetaResponse['products'];
   productImages: File[];
@@ -39,7 +37,6 @@ export function StepProduct({
     const match = products.find((p) => p.sku === sku);
     if (!match) return;
     if (!getValues('product_name')) setValue('product_name', match.product_name);
-    if (!getValues('model') && match.model) setValue('model', match.model);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sku]);
 
@@ -63,33 +60,15 @@ export function StepProduct({
           {errors.product_name && <p className="mt-1 text-xs text-error">{errors.product_name.message}</p>}
         </div>
         <div>
-          <Label htmlFor="model">รุ่น</Label>
-          <Input id="model" {...register('model')} placeholder="รุ่นสินค้า (ถ้ามี)" />
-        </div>
-        <div>
           <Label htmlFor="serial_no">Serial Number (ไม่บังคับ)</Label>
           <Input id="serial_no" {...register('serial_no')} placeholder="S/N หากมีระบุไว้บนสินค้า" />
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="issue_group">กลุ่มปัญหา</Label>
-          <Select id="issue_group" {...register('issue_group')}>
-            <option value="">เลือกกลุ่มปัญหา</option>
-            {issueGroups.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </Select>
-          {errors.issue_group && <p className="mt-1 text-xs text-error">{errors.issue_group.message}</p>}
-        </div>
-        <div className="sm:row-span-2">
-          <Label htmlFor="issue_detail">รายละเอียดอาการเสีย</Label>
-          <Textarea id="issue_detail" {...register('issue_detail')} placeholder="อธิบายอาการเสียโดยละเอียด" rows={4} />
-          {errors.issue_detail && <p className="mt-1 text-xs text-error">{errors.issue_detail.message}</p>}
-        </div>
+      <div>
+        <Label htmlFor="issue_detail">รายละเอียดอาการเสีย</Label>
+        <Textarea id="issue_detail" {...register('issue_detail')} placeholder="อธิบายอาการเสียโดยละเอียด" rows={4} />
+        {errors.issue_detail && <p className="mt-1 text-xs text-error">{errors.issue_detail.message}</p>}
       </div>
 
       <div className="rounded-lg border border-border bg-slate-50/60 p-4">

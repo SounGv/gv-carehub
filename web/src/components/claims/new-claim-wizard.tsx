@@ -21,7 +21,7 @@ import type { CreateClaimPayload } from '@/lib/types';
 
 const STEP_FIELDS: Record<number, (keyof NewClaimValues | 'address')[]> = {
   1: ['channel', 'order_no', 'customer_name', 'phone', 'email'],
-  2: ['sku', 'product_name', 'model', 'serial_no', 'issue_group', 'issue_detail'],
+  2: ['sku', 'product_name', 'serial_no', 'issue_detail'],
   3: ['address'],
 };
 
@@ -64,9 +64,7 @@ export function NewClaimWizard() {
       email: '',
       sku: '',
       product_name: '',
-      model: '',
       serial_no: '',
-      issue_group: '',
       issue_detail: '',
       carrier_in: '',
       tracking_no_in: '',
@@ -104,9 +102,7 @@ export function NewClaimWizard() {
         item: {
           sku: values.sku || undefined,
           product_name: values.product_name,
-          model: values.model || undefined,
           serial_no: values.serial_no || undefined,
-          issue_group: values.issue_group,
           issue_detail: values.issue_detail,
           product_image_urls: productImageUrls.length ? productImageUrls : undefined,
           label_image_urls: labelImageUrls.length ? labelImageUrls : undefined,
@@ -146,7 +142,6 @@ export function NewClaimWizard() {
             {step === 1 && <StepCustomer channels={meta.data.channels} />}
             {step === 2 && (
               <StepProduct
-                issueGroups={meta.data.issue_groups}
                 carriers={meta.data.carriers}
                 products={meta.data.products}
                 productImages={productImages}
