@@ -1,15 +1,31 @@
 'use client';
 
-import { useFormContext } from 'react-hook-form';
+import { useController, useFormContext } from 'react-hook-form';
 import { Input, Label } from '@/components/ui/input';
+import { AddressAutocomplete } from '@/components/claims/address-autocomplete';
+import type { ThaiAddressMatch } from '@/lib/thai-address';
 import type { NewClaimValues } from '@/lib/validators';
 
 export function StepAddress() {
   const {
     register,
+    control,
+    setValue,
     formState: { errors },
   } = useFormContext<NewClaimValues>();
   const addressErrors = errors.address;
+
+  const tambon = useController({ name: 'address.tambon', control });
+  const amphoe = useController({ name: 'address.amphoe', control });
+  const province = useController({ name: 'address.province', control });
+  const zipcode = useController({ name: 'address.zipcode', control });
+
+  function fillFromMatch(match: ThaiAddressMatch) {
+    setValue('address.tambon', match.tambon, { shouldValidate: true });
+    setValue('address.amphoe', match.amphoe, { shouldValidate: true });
+    setValue('address.province', match.province, { shouldValidate: true });
+    setValue('address.zipcode', match.zipcode, { shouldValidate: true });
+  }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -32,22 +48,30 @@ export function StepAddress() {
       </div>
       <div>
         <Label htmlFor="tambon">ตำบล/แขวง</Label>
-        <Input id="tambon" {...register('address.tambon')} />
+        <AddressAutocomplete id="tambon" field="tambon" value={tambon.field.value} onChange={tambon.field.onChange} onSelect={fillFromMatch} />
         {addressErrors?.tambon && <p className="mt-1 text-xs text-error">{addressErrors.tambon.message}</p>}
       </div>
       <div>
         <Label htmlFor="amphoe">อำเภอ/เขต</Label>
-        <Input id="amphoe" {...register('address.amphoe')} />
+        <AddressAutocomplete id="amphoe" field="amphoe" value={amphoe.field.value} onChange={amphoe.field.onChange} onSelect={fillFromMatch} />
         {addressErrors?.amphoe && <p className="mt-1 text-xs text-error">{addressErrors.amphoe.message}</p>}
       </div>
       <div>
         <Label htmlFor="province">จังหวัด</Label>
-        <Input id="province" {...register('address.province')} />
+        <AddressAutocomplete id="province" field="province" value={province.field.value} onChange={province.field.onChange} onSelect={fillFromMatch} />
         {addressErrors?.province && <p className="mt-1 text-xs text-error">{addressErrors.province.message}</p>}
       </div>
       <div>
         <Label htmlFor="zipcode">รหัสไปรษณีย์</Label>
-        <Input id="zipcode" {...register('address.zipcode')} inputMode="numeric" maxLength={5} />
+        <AddressAutocomplete
+          id="zipcode"
+          field="zipcode"
+          value={zipcode.field.value}
+          onChange={zipcode.field.onChange}
+          onSelect={fillFromMatch}
+          inputMode="numeric"
+          maxLength={5}
+        />
         {addressErrors?.zipcode && <p className="mt-1 text-xs text-error">{addressErrors.zipcode.message}</p>}
       </div>
     </div>
