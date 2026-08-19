@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { differenceInCalendarDays, format, subDays } from 'date-fns';
+import { addDays, differenceInCalendarDays, format, subDays } from 'date-fns';
 import {
   AlertOctagon,
+  AlertTriangle,
   CheckCircle2,
   ClipboardList,
   Coins,
@@ -17,7 +18,8 @@ import { gvApi, type DashboardFilters } from '@/lib/api';
 import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
-import { DailyClaimsChart, RankedBarChart, StatusWorkflowChart } from '@/components/dashboard/charts';
+import { colorForCategory, DailyClaimsChart, RankedBarChart, StatusProportionStrip } from '@/components/dashboard/charts';
+import { CHART_CLAIMED_SKU, CHART_DAMAGE_SKU, CHART_ISSUE, CHART_OWNER_ASSIGNED, CHART_OWNER_UNASSIGNED } from '@/lib/constants';
 import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +28,22 @@ import { formatCurrency, formatPercent, formatThaiDate } from '@/lib/formatters'
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const defaultFrom = () => format(subDays(new Date(), 29), 'yyyy-MM-dd');
+
+/** Dense day-by-day series across [from, to] — fills in zero-count days the API
+ * omits, so two periods of the same length can be aligned by day offset. */
+function fillDailyRange(from: string | undefined, to: string | undefined, data: { date: string; count: number }[]) {
+  const counts = new Map(data.map((d) => [d.date, d.count]));
+  const out: { date: string; count: number }[] = [];
+  let cursor = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (isNaN(cursor.getTime()) || isNaN(end.getTime())) return out;
+  while (cursor <= end) {
+    const key = format(cursor, 'yyyy-MM-dd');
+    out.push({ date: key, count: counts.get(key) ?? 0 });
+    cursor = addDays(cursor, 1);
+  }
+  return out;
+}
 
 export default function AdminDashboardPage() {
   const [filters, setFilters] = useState<DashboardFilters>({ from: defaultFrom(), to: today(), sku: '', status: '', channel: '' });
@@ -62,6 +80,18 @@ export default function AdminDashboardPage() {
   const topIssueRows = useMemo(() => dashboard.data?.charts.top_issues ?? [], [dashboard.data]);
   const brandRows = useMemo(() => dashboard.data?.charts.damage_by_brand ?? [], [dashboard.data]);
   const ownerRows = useMemo(() => dashboard.data?.charts.by_owner ?? [], [dashboard.data]);
+
+  const dailyCombined = useMemo(() => {
+    const cur = fillDailyRange(filters.from, filters.to, dashboard.data?.charts.daily_claims ?? []);
+    const prev = fillDailyRange(previousFilters.from, previousFilters.to, previous.data?.charts.daily_claims ?? []);
+    return cur.map((c, i) => ({ date: c.date, current: c.count, previous: prev[i]?.count ?? 0 }));
+  }, [dashboard.data, previous.data, filters.from, filters.to, previousFilters.from, previousFilters.to]);
+
+  const ownerUnassignedPct = useMemo(() => {
+    const total = ownerRows.reduce((sum, r) => sum + r.count, 0);
+    const unassigned = ownerRows.find((r) => r.owner === 'ยังไม่ระบุ')?.count ?? 0;
+    return total > 0 ? Math.round((unassigned / total) * 100) : 0;
+  }, [ownerRows]);
 
   return (
     <div className="space-y-5">
@@ -207,7 +237,20 @@ export default function AdminDashboardPage() {
               <CardTitle>จำนวนเคสที่แต่ละคนรับเรื่อง (เจ้าของเคส)</CardTitle>
             </CardHeader>
             <CardContent>
-              <RankedBarChart data={ownerRows} labelKey="owner" valueKey="count" valueLabel="จำนวนเคส" emptyTitle="ยังไม่มีเคสที่กำหนดเจ้าของในช่วงที่เลือก" />
+              <RankedBarChart
+                data={ownerRows}
+                labelKey="owner"
+                valueKey="count"
+                valueLabel="จำนวนเคส"
+                emptyTitle="ยังไม่มีเคสที่กำหนดเจ้าของในช่วงที่เลือก"
+                colorFn={(label) => (label === 'ยังไม่ระบุ' ? CHART_OWNER_UNASSIGNED : CHART_OWNER_ASSIGNED)}
+              />
+              {ownerUnassignedPct > 0 && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <AlertTriangle className="h-4 w-4 flex-none" />
+                  <span>ต้องระบุผู้รับผิดชอบ: {ownerUnassignedPct}% ของเคสยังไม่ระบุเจ้าของ</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -217,7 +260,7 @@ export default function AdminDashboardPage() {
                 <CardTitle>จำนวนเคลมรายวัน</CardTitle>
               </CardHeader>
               <CardContent>
-                <DailyClaimsChart data={dashboard.data.charts.daily_claims} />
+                <DailyClaimsChart data={dailyCombined} />
               </CardContent>
             </Card>
 
@@ -243,7 +286,7 @@ export default function AdminDashboardPage() {
                 <CardTitle>สัดส่วนตามสถานะ</CardTitle>
               </CardHeader>
               <CardContent>
-                <StatusWorkflowChart data={dashboard.data.charts.by_status} />
+                <StatusProportionStrip data={dashboard.data.charts.by_status} />
               </CardContent>
             </Card>
 
@@ -259,6 +302,7 @@ export default function AdminDashboardPage() {
                   valueLabel="มูลค่าความเสียหาย"
                   emptyTitle="ไม่มีข้อมูล SKU ในช่วงที่เลือก"
                   formatValue={(v) => formatCurrency(v)}
+                  color={CHART_DAMAGE_SKU}
                 />
               </CardContent>
             </Card>
@@ -274,6 +318,7 @@ export default function AdminDashboardPage() {
                   valueKey="count"
                   valueLabel="จำนวนเคลม"
                   emptyTitle="ไม่มีข้อมูล SKU ในช่วงที่เลือก"
+                  color={CHART_CLAIMED_SKU}
                 />
               </CardContent>
             </Card>
@@ -283,7 +328,7 @@ export default function AdminDashboardPage() {
                 <CardTitle>อาการเสียที่พบบ่อย</CardTitle>
               </CardHeader>
               <CardContent>
-                <RankedBarChart data={topIssueRows} labelKey="issue" valueKey="count" valueLabel="จำนวนครั้ง" emptyTitle="ไม่มีข้อมูลอาการเสีย" />
+                <RankedBarChart data={topIssueRows} labelKey="issue" valueKey="count" valueLabel="จำนวนครั้ง" emptyTitle="ไม่มีข้อมูลอาการเสีย" color={CHART_ISSUE} />
               </CardContent>
             </Card>
 
@@ -299,6 +344,7 @@ export default function AdminDashboardPage() {
                   valueLabel="มูลค่าความเสียหาย"
                   emptyTitle="ไม่มีข้อมูลแบรนด์ในช่วงที่เลือก"
                   formatValue={(v) => formatCurrency(v)}
+                  colorFn={colorForCategory}
                 />
               </CardContent>
             </Card>

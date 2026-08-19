@@ -31,6 +31,23 @@ export const DEFAULT_STATUS_STYLE = { bg: 'bg-slate-100', text: 'text-slate-700'
  * an unrelated corporate blue and the app's actual lime/charcoal identity.
  */
 export const CHART_PRIMARY = '#7a8a00';
+
+/**
+ * Per-chart accent hues, one slot each from the org's validated 8-hue
+ * categorical palette (see the dataviz skill's palette.md) — so each ranked
+ * chart on the dashboard reads as intentionally distinct instead of every
+ * chart repeating CHART_PRIMARY. Single-series magnitude charts (not
+ * identity/legend charts), so each keeps its own fixed hue rather than
+ * cycling per bar.
+ */
+export const CHART_DAMAGE_SKU = '#4a3aa7'; // violet — SKU ที่เสียหายสูงสุด (มูลค่า)
+export const CHART_CLAIMED_SKU = '#1baf7a'; // aqua — SKU ที่แจ้งเคลมบ่อยที่สุด (จำนวนครั้ง)
+export const CHART_ISSUE = '#e34948'; // red — อาการเสียที่พบบ่อย
+export const CHART_DAILY = '#008300'; // green — จำนวนเคลมรายวัน (ช่วงที่เลือก)
+export const CHART_PREVIOUS_PERIOD = '#2a78d6'; // blue, dashed — จำนวนเคลมรายวัน (ช่วงก่อนหน้า)
+export const CHART_OWNER_ASSIGNED = '#2a78d6'; // blue — เจ้าของเคสที่ระบุแล้ว
+export const CHART_OWNER_UNASSIGNED = '#eb6834'; // orange — ยังไม่ระบุเจ้าของ
+
 export const CHART_STATUS = {
   good: '#0ca30c',
   warning: '#fab219',
