@@ -79,7 +79,12 @@ grant execute on function bump_claim_seq_if_behind(bigint) to service_role;
 create or replace function create_claim(p jsonb) returns json
 language plpgsql
 security definer
-set search_path = public
+-- Supabase installs pgcrypto into the `extensions` schema, not `public` — the
+-- schema-qualified search_path here is required for gen_random_bytes()/digest()
+-- to resolve (found the hard way: without `extensions`, every call fails with
+-- "function gen_random_bytes(integer) does not exist" even though the
+-- extension itself is created successfully).
+set search_path = public, extensions
 as $$
 declare
   v_claim_no text;
