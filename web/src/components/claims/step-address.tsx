@@ -22,10 +22,13 @@ export function StepAddress() {
   const zipcode = useController({ name: 'address.zipcode', control });
 
   function fillFromMatch(match: ThaiAddressMatch) {
-    setValue('address.tambon', match.tambon, { shouldValidate: true });
-    setValue('address.amphoe', match.amphoe, { shouldValidate: true });
+    // A province-only match (see searchThaiAddress) omits tambon/amphoe/zipcode
+    // entirely — only touch the fields actually present, so picking a province
+    // suggestion never clears a tambon/amphoe/zipcode already filled in elsewhere.
+    if (match.tambon !== undefined) setValue('address.tambon', match.tambon, { shouldValidate: true });
+    if (match.amphoe !== undefined) setValue('address.amphoe', match.amphoe, { shouldValidate: true });
     setValue('address.province', match.province, { shouldValidate: true });
-    setValue('address.zipcode', match.zipcode, { shouldValidate: true });
+    if (match.zipcode !== undefined) setValue('address.zipcode', match.zipcode, { shouldValidate: true });
   }
 
   function fillFromMap(result: MapAddressResult) {

@@ -79,19 +79,25 @@ export function AddressAutocomplete({
       {open && (
         <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
           {suggestions.map((s, i) => (
-            <li key={`${s.tambon}-${s.amphoe}-${s.zipcode}-${i}`}>
+            <li key={`${s.tambon ?? ''}-${s.amphoe ?? ''}-${s.province}-${s.zipcode ?? ''}-${i}`}>
               <button
                 type="button"
                 className="block w-full px-3 py-2 text-left hover:bg-slate-50"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(s)}
               >
-                <div className="font-medium text-foreground">
-                  {s.tambon} · {s.amphoe}
-                </div>
-                <div className="text-xs text-slate-400">
-                  {s.province} {s.zipcode}
-                </div>
+                {s.tambon ? (
+                  <>
+                    <div className="font-medium text-foreground">
+                      {s.tambon} · {s.amphoe}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {s.province} {s.zipcode}
+                    </div>
+                  </>
+                ) : (
+                  <div className="font-medium text-foreground">{s.province}</div>
+                )}
               </button>
             </li>
           ))}

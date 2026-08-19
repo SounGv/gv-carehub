@@ -6,10 +6,10 @@ import {
 } from 'thai-address-database';
 
 export interface ThaiAddressMatch {
-  tambon: string;
-  amphoe: string;
+  tambon?: string;
+  amphoe?: string;
   province: string;
-  zipcode: string;
+  zipcode?: string;
 }
 
 export type ThaiAddressField = 'tambon' | 'amphoe' | 'province' | 'zipcode';
@@ -27,6 +27,26 @@ export function searchThaiAddress(field: ThaiAddressField, query: string, maxRes
   const trimmed = query.trim();
   if (!trimmed) return [];
   const raw = SEARCHERS[field](trimmed, maxResult);
+
+  // จังหวัด is unambiguous by itself (unlike ตำบล, which repeats across many
+  // provinces) — showing up to 8 arbitrary ตำบลs from inside the matched
+  // province was confusing when the customer is just confirming the province
+  // name, so collapse to one suggestion per distinct province instead, and
+  // leave tambon/amphoe/zipcode out of the match entirely (fillFromMatch only
+  // touches fields present on the match, so this never clears what's already
+  // been filled in on the other fields).
+  if (field === 'province') {
+    const seenProvince = new Set<string>();
+    const provinceOut: ThaiAddressMatch[] = [];
+    for (const r of raw) {
+      const province = String(r.province);
+      if (seenProvince.has(province)) continue;
+      seenProvince.add(province);
+      provinceOut.push({ province });
+    }
+    return provinceOut;
+  }
+
   const seen = new Set<string>();
   const out: ThaiAddressMatch[] = [];
   for (const r of raw) {
