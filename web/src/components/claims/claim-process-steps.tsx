@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Check, ChevronRight, Clock, Copy, MapPin, Phone, ClipboardEdit, PackageCheck, ShieldCheck, Truck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -68,8 +69,8 @@ export function ClaimProcessSteps() {
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-white">
       <div className="flex items-center justify-between bg-brand-lime px-5 py-3">
-        <div className="text-base font-extrabold text-brand-charcoal sm:text-lg">
-          วิธีเคลมสินค้าง่าย ๆ กับ <span className="italic">GV</span>
+        <div className="flex items-center gap-1.5 text-base font-extrabold text-brand-charcoal sm:text-lg">
+          วิธีเคลมสินค้าง่าย ๆ กับ <Image src="/logo-gv-mark.png" alt="GV" width={1100} height={539} className="h-5 w-auto sm:h-6" />
         </div>
         <div className="text-[11px] font-bold uppercase tracking-wide text-brand-charcoal/70">Gadget Villa</div>
       </div>

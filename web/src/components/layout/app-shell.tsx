@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -160,7 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <X className="h-5 w-5" />
           </button>
           <div className="flex flex-col items-center gap-1.5 pb-1 pt-1 text-center">
-            <div className="text-[40px] font-black italic leading-none tracking-tighter text-brand-lime">GV</div>
+            <Image src="/logo-gv-mark.png" alt="Gadget Villa" width={1100} height={539} className="h-11 w-auto" />
             <div className="text-[11px] font-semibold uppercase leading-tight tracking-[0.2em] text-white/60">Gadget Villa</div>
             <div className="h-px w-10 bg-white/20" />
             <div className="text-[19px] font-extrabold leading-tight text-white">CareHub</div>
