@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Loader2, MapPin, Search } from 'lucide-react';
+import { toast } from 'sonner';
+import { Check, Loader2, LocateFixed, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -47,6 +48,7 @@ export function AddressMapPicker({ onSelect }: { onSelect: (result: MapAddressRe
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [marker, setMarker] = useState<[number, number] | null>(null);
   const [label, setLabel] = useState('');
+  const [locating, setLocating] = useState(false);
 
   async function reverseGeocode(lat: number, lon: number) {
     try {
@@ -64,6 +66,29 @@ export function AddressMapPicker({ onSelect }: { onSelect: (result: MapAddressRe
   function handlePick(lat: number, lon: number) {
     setMarker([lat, lon]);
     reverseGeocode(lat, lon);
+  }
+
+  function handleUseMyLocation() {
+    if (!navigator.geolocation) {
+      toast.error('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง กรุณาเลือกตำแหน่งเองบนแผนที่');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCenter([latitude, longitude]);
+        setZoom(17);
+        setMarker([latitude, longitude]);
+        reverseGeocode(latitude, longitude);
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        toast.error('ไม่สามารถระบุตำแหน่งได้ กรุณาอนุญาตการเข้าถึงตำแหน่ง หรือเลือกตำแหน่งเองบนแผนที่');
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   }
 
   async function handleSearch() {
@@ -115,12 +140,21 @@ export function AddressMapPicker({ onSelect }: { onSelect: (result: MapAddressRe
         <Button type="button" variant="outline" onClick={handleSearch} disabled={searching}>
           {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
         </Button>
+        <Button type="button" variant="outline" onClick={handleUseMyLocation} disabled={locating} title="ตำแหน่งของฉัน">
+          {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+          <span className="hidden sm:inline">ตำแหน่งของฉัน</span>
+        </Button>
       </div>
       <AddressMapInner center={center} zoom={zoom} marker={marker} onPick={handlePick} />
       {label && <p className="text-xs text-slate-500">{label}</p>}
       <p className="text-xs text-slate-400">
         คลิกหรือลากหมุดบนแผนที่เพื่อเลือกตำแหน่ง ระบบจะกรอกที่อยู่ให้อัตโนมัติ (กรุณาตรวจสอบความถูกต้องอีกครั้งก่อนส่ง)
       </p>
+      <div className="flex justify-end">
+        <Button type="button" variant="brand" onClick={() => setOpen(false)} disabled={!marker}>
+          <Check className="h-4 w-4" /> ยืนยันตำแหน่ง
+        </Button>
+      </div>
     </div>
   );
 }
