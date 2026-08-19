@@ -402,6 +402,19 @@ export interface CreateClaimPayload {
   };
 }
 
+/** Payload sent to POST action=mirror_claim — brings a claim that was
+ * created fast via Supabase's create_claim RPC into Google Sheets, where
+ * every other page (staff receive/ship/claim-detail, /track/[token]) can
+ * actually see it. claim_no/claim_id/public_token_hash come from the
+ * create_claim response (the hash computed client-side via sha256Hex, since
+ * Supabase only returns the raw token, never the hash) — everything else is
+ * the same shape as CreateClaimPayload. */
+export interface MirrorClaimPayload extends CreateClaimPayload {
+  claim_no: string;
+  claim_id: string;
+  public_token_hash: string;
+}
+
 /* ---------------- Supplier RMA (ส่งเคลมผู้ผลิต) ----------------
  * Built directly on the legacy CLSBS sheet's own "เลขที่บิลกลุ่ม" (batch
  * number) column — see apps-script/Code.gs's Supplier RMA section.

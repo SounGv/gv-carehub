@@ -112,6 +112,8 @@ function doPost(e) {
     let result;
     if (action === 'setup') result = setupSheets_();
     else if (action === 'create_claim') result = createClaim_(body);
+    else if (action === 'mirror_claim') result = mirrorClaim_(body);
+    else if (action === 'install_reconcile_trigger') result = installReconcileTrigger_();
     else if (action === 'receive') result = updateStatus_(body, 'รับเข้าคลังแล้ว');
     else if (action === 'service') result = updateStatus_(body, body.to_status || 'กำลังดำเนินการ');
     else if (action === 'ship') result = shipClaim_(body);
@@ -246,6 +248,113 @@ function buildAddress_(a) {
     a.zipcode || ''
   ];
   return parts.filter(function(s) { return s; }).join(' ');
+}
+
+/**
+ * Mirrors a claim that was created FAST via the Supabase create_claim RPC
+ * (supabase/003_create_claim.sql) into Sheets — this is what every other page
+ * (staff receive/ship/claim-detail, the customer's own /track/[token]) needs
+ * to actually see it, since none of those read Supabase. Never calls
+ * nextClaimNo_ — the claim_no already exists and must be reused exactly.
+ *
+ * Idempotent per-sheet (not just per-claim): checks each of Claim_Master/
+ * Claim_Items/Shipment_Log independently before appending, so a retry after a
+ * partial failure (e.g. the run got cut off between appends) fills in only
+ * what's actually missing instead of skipping everything once Claim_Master
+ * has a row. Called two ways: (1) fired by the browser right after Supabase
+ * confirms creation — the fast path, usually done in 1-3s; (2) swept up by
+ * reconcileUnmirroredClaims_ every 5 minutes as the guaranteed backstop if (1)
+ * never happens (closed tab, network blip, Apps Script briefly down).
+ */
+function mirrorClaim_(p) {
+  if (!p.claim_no || !p.claim_id) throw new Error('claim_no และ claim_id จำเป็น');
+  const ss = spreadsheet_();
+  const now = p.submitted_at ? new Date(p.submitted_at) : new Date();
+
+  const existingClaim = readObjectByKey_(SHEETS.CLAIMS, 'claim_no', p.claim_no);
+  if (!existingClaim) {
+    ss.getSheetByName(SHEETS.CLAIMS).appendRow([
+      p.claim_no, p.claim_id, now, p.channel || '', p.order_no || '',
+      p.customer_name || '', normalizePhone_(p.phone || ''), p.email || '', p.address || '',
+      'แจ้งเคลมแล้ว', p.public_token_hash || '', '', '', '', Number(p.product_value || 0),
+      '', now, 'customer', p.note || '', ''
+    ]);
+  }
+
+  const item = p.item || {};
+  const itemsSheet = ss.getSheetByName(SHEETS.ITEMS);
+  const foundItem = findRowBy_(itemsSheet, 'claim_no', p.claim_no);
+  if (!foundItem) {
+    const itemRow = HEADERS.Claim_Items.map(function(h) {
+      switch (h) {
+        case 'claim_no': return p.claim_no;
+        case 'item_id': return item.item_id || Utilities.getUuid();
+        case 'sku': return item.sku || '';
+        case 'product_name': return item.product_name || '';
+        case 'model': return item.model || '';
+        case 'serial_no': return item.serial_no || '';
+        case 'issue_group': return item.issue_group || '';
+        case 'issue_detail': return item.issue_detail || '';
+        case 'quantity': return Number(item.quantity || 1);
+        case 'product_value': return Number(item.product_value || p.product_value || 0);
+        case 'product_image_urls': return (item.product_image_urls || []).join(',');
+        case 'label_image_urls': return (item.label_image_urls || []).join(',');
+        default: return '';
+      }
+    });
+    itemsSheet.appendRow(itemRow);
+  } else {
+    // The item row can already exist here in exactly one case: the Apps
+    // Script create_claim fallback path (used when Supabase is unreachable)
+    // writes Claim_Items directly, before the photo uploads (which always
+    // happen afterward, in the background, regardless of which path created
+    // the claim) have finished. If those uploads now have real URLs and the
+    // row's fields are still blank, fill them in here instead of silently
+    // losing the photos.
+    const productUrls = (item.product_image_urls || []).join(',');
+    const labelUrls = (item.label_image_urls || []).join(',');
+    let changed = false;
+    if (productUrls && !foundItem.obj.product_image_urls) { foundItem.obj.product_image_urls = productUrls; changed = true; }
+    if (labelUrls && !foundItem.obj.label_image_urls) { foundItem.obj.label_image_urls = labelUrls; changed = true; }
+    if (changed) writeObject_(itemsSheet, foundItem.row, foundItem.obj);
+  }
+
+  const inbound = p.inbound || {};
+  if (inbound.tracking_no) {
+    const existingShipment = findRowsByKey_(SHEETS.SHIPMENTS, 'claim_no', p.claim_no)
+      .some(function(r) { return r.obj.direction === 'inbound'; });
+    if (!existingShipment) {
+      ss.getSheetByName(SHEETS.SHIPMENTS).appendRow([
+        Utilities.getUuid(), p.claim_no, 'inbound', inbound.carrier || '', inbound.tracking_no,
+        inbound.ship_date ? new Date(inbound.ship_date) : now, '', 'customer',
+        inbound.label_image_url || '', '', ''
+      ]);
+    }
+  }
+
+  if (!existingClaim) {
+    addHistory_(p.claim_no, '', 'แจ้งเคลมแล้ว', 'customer', 'สร้างเคส (mirror จาก Supabase)');
+  }
+
+  bumpConfigLastClaimNumber_(p.claim_no);
+  logSync_('mirror_claim', p.claim_no, 'ok', existingClaim ? 'already present' : 'mirrored');
+  return { ok: true, claim_no: p.claim_no };
+}
+
+/** Keeps Config.last_claim_number ahead of any claim_no minted by Supabase's
+ * claim_no_seq, so if Supabase ever goes down and the code falls back to the
+ * old Sheets-only createClaim_/nextClaimNo_ path, it can never reissue a
+ * number Postgres already allocated. */
+function bumpConfigLastClaimNumber_(claimNo) {
+  const m = /(\d+)\s*$/.exec(String(claimNo || ''));
+  if (!m) return;
+  const n = Number(m[1]);
+  const sh = spreadsheet_().getSheetByName(SHEETS.CONFIG);
+  const rows = sh.getDataRange().getValues();
+  const rowIdx = rows.findIndex(function(r) { return r[0] === 'last_claim_number'; });
+  if (rowIdx < 0) return;
+  const current = Number(rows[rowIdx][1] || 0);
+  if (n > current) sh.getRange(rowIdx + 1, 2).setValue(n);
 }
 
 /* ---------------- Public tracking ---------------- */
@@ -1996,4 +2105,123 @@ function backfillAllToSupabase_() {
   counts.sales_daily = backfillSalesDailyToSupabase_();
   Logger.log(JSON.stringify(counts));
   return counts;
+}
+
+/* ---------------- Supabase -> Sheets: live claim-creation mirror ----------------
+ * The reverse direction of the section above. New claims are created FAST in
+ * Supabase (supabase/003_create_claim.sql's create_claim RPC, called directly
+ * from the browser) and normally mirrored into Sheets within 1-3s by the
+ * browser calling the mirror_claim action right after. This section is the
+ * guaranteed backstop for when that fast path doesn't happen — a time-driven
+ * trigger that sweeps up anything still unmirrored on a fixed schedule, so a
+ * claim is never permanently stuck existing in Supabase only.
+ *
+ * SETUP (one time): call action=install_reconcile_trigger once (e.g.
+ * `curl -X POST ... -d '{"action":"install_reconcile_trigger"}'`) after
+ * deploying. Safe to call again later — it removes any existing trigger for
+ * this function first, so it never ends up double-installed.
+ */
+
+function reconcileUnmirroredClaims_() {
+  const key = supabaseServiceKey_();
+  const headers = { apikey: key, Authorization: 'Bearer ' + key };
+  const res = UrlFetchApp.fetch(
+    SUPABASE_URL_ + '/rest/v1/claims?sheets_synced=eq.false&select=*&order=submitted_at.asc&limit=25',
+    { headers: headers, muteHttpExceptions: true }
+  );
+  if (res.getResponseCode() >= 300) {
+    logSync_('reconcile_unmirrored', '', 'error', 'HTTP ' + res.getResponseCode() + ' - ' + res.getContentText());
+    return;
+  }
+  const claims = JSON.parse(res.getContentText());
+  claims.forEach(function(c) {
+    try {
+      const items = supabaseSelect_('claim_items', 'claim_no=eq.' + encodeURIComponent(c.claim_no));
+      const shipments = supabaseSelect_('shipment_log', 'claim_no=eq.' + encodeURIComponent(c.claim_no) + '&direction=eq.inbound');
+      const item = items[0] || {};
+      const shipment = shipments[0] || null;
+      mirrorClaim_({
+        claim_no: c.claim_no,
+        claim_id: c.claim_id,
+        submitted_at: c.submitted_at,
+        channel: c.channel,
+        order_no: c.order_no,
+        customer_name: c.customer_name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        public_token_hash: c.public_token_hash,
+        product_value: c.product_value,
+        note: c.note,
+        item: {
+          item_id: item.item_id,
+          sku: item.sku,
+          product_name: item.product_name,
+          model: item.model,
+          serial_no: item.serial_no,
+          issue_group: item.issue_group,
+          issue_detail: item.issue_detail,
+          quantity: item.quantity,
+          product_value: item.product_value,
+          product_image_urls: item.product_image_urls ? item.product_image_urls.split(',').filter(function(s) { return s; }) : [],
+          label_image_urls: item.label_image_urls ? item.label_image_urls.split(',').filter(function(s) { return s; }) : []
+        },
+        inbound: shipment
+          ? { carrier: shipment.carrier, tracking_no: shipment.tracking_no, ship_date: shipment.ship_date, label_image_url: shipment.label_image_url }
+          : {}
+      });
+      supabasePatchClaim_(c.claim_no, { sheets_synced: true, sheets_sync_last_error: null });
+    } catch (err) {
+      supabasePatchClaim_(c.claim_no, {
+        sheets_sync_attempts: Number(c.sheets_sync_attempts || 0) + 1,
+        sheets_sync_last_error: String((err && err.message) || err)
+      });
+    }
+  });
+  bumpClaimSeqIfBehind_();
+}
+
+function supabaseSelect_(table, query) {
+  const key = supabaseServiceKey_();
+  const res = UrlFetchApp.fetch(SUPABASE_URL_ + '/rest/v1/' + table + '?' + query + '&select=*', {
+    headers: { apikey: key, Authorization: 'Bearer ' + key },
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() >= 300) return [];
+  return JSON.parse(res.getContentText());
+}
+
+function supabasePatchClaim_(claimNo, fields) {
+  const key = supabaseServiceKey_();
+  UrlFetchApp.fetch(SUPABASE_URL_ + '/rest/v1/claims?claim_no=eq.' + encodeURIComponent(claimNo), {
+    method: 'patch',
+    contentType: 'application/json',
+    headers: { apikey: key, Authorization: 'Bearer ' + key, Prefer: 'return=minimal' },
+    payload: JSON.stringify(fields),
+    muteHttpExceptions: true
+  });
+}
+
+/** Nudges Postgres's claim_no_seq past any new legacy hand-typed number, so
+ * staff hand-typing a new GV##### straight into the legacy sheet (the habit
+ * that caused a real past incident, GV25083 — see legacyMaxClaimNumber_)
+ * can never collide with a number Supabase's create_claim mints next. */
+function bumpClaimSeqIfBehind_() {
+  const key = supabaseServiceKey_();
+  const legacyMax = Math.max(Number(configMap_().last_claim_number || 0), legacyMaxClaimNumber_());
+  UrlFetchApp.fetch(SUPABASE_URL_ + '/rest/v1/rpc/bump_claim_seq_if_behind', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { apikey: key, Authorization: 'Bearer ' + key },
+    payload: JSON.stringify({ p_legacy_max: legacyMax }),
+    muteHttpExceptions: true
+  });
+}
+
+function installReconcileTrigger_() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'reconcileUnmirroredClaims_') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('reconcileUnmirroredClaims_').timeBased().everyMinutes(5).create();
+  return { ok: true, message: 'reconcileUnmirroredClaims_ scheduled every 5 minutes' };
 }

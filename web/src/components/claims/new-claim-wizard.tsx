@@ -9,6 +9,7 @@ import { newClaimSchema, type NewClaimValues } from '@/lib/validators';
 import { useMeta } from '@/hooks/use-meta';
 import { gvApi, GvApiError } from '@/lib/api';
 import { compressImageForUpload } from '@/lib/upload';
+import { sha256Hex } from '@/lib/hash';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
@@ -17,7 +18,7 @@ import { StepCustomer } from './step-customer';
 import { StepProduct } from './step-product';
 import { StepAddress } from './step-address';
 import { ClaimSuccess } from './claim-success';
-import type { CreateClaimPayload } from '@/lib/types';
+import type { CreateClaimPayload, CreateClaimResult, MirrorClaimPayload } from '@/lib/types';
 
 const STEP_FIELDS: Record<number, (keyof NewClaimValues | 'address')[]> = {
   1: ['channel', 'order_no', 'customer_name', 'phone', 'email'],
@@ -48,6 +49,27 @@ async function uploadImages(files: File[], imageType: string): Promise<string[]>
     }),
   );
   return results.filter((url): url is string => url !== null);
+}
+
+/** create_claim now runs against Supabase first (see gvApi.createClaim) —
+ * fast, but invisible to every other page (staff receive/ship/claim-detail,
+ * /track/[token]) until it's mirrored into Sheets. This call is what does
+ * that, retried a few times on failure; if all retries fail, the claim is
+ * still safe — the Apps Script reconciliation cron (every 5 minutes) sweeps
+ * up anything left unmirrored, so it's a delay, never a loss. */
+async function mirrorClaimWithRetry(payload: MirrorClaimPayload, attempts = 3): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await gvApi.mirrorClaim(payload);
+      return;
+    } catch (err) {
+      if (i === attempts - 1) {
+        console.error('mirrorClaim failed after retries — the 5-minute reconciliation cron will pick this claim up', err);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+    }
+  }
 }
 
 export function NewClaimWizard() {
@@ -88,14 +110,33 @@ export function NewClaimWizard() {
     setStep((s) => Math.max(1, s - 1));
   }
 
+  // Photos are never on the critical path for showing the customer their
+  // claim number — the claim already exists (in Supabase) and the customer
+  // doesn't need to wait on Drive uploads to see success. This uploads them
+  // and mirrors the whole claim into Sheets afterward, in the background.
+  async function finishInBackground(created: CreateClaimResult, payload: CreateClaimPayload) {
+    const [productImageUrls, labelImageUrls] = await Promise.all([
+      uploadImages(productImages, 'product'),
+      uploadImages(labelImages, 'label'),
+    ]);
+
+    const mirrorPayload: MirrorClaimPayload = {
+      ...payload,
+      claim_no: created.claim_no,
+      claim_id: created.claim_id,
+      public_token_hash: await sha256Hex(created.public_token),
+      item: {
+        ...payload.item,
+        product_image_urls: productImageUrls.length ? productImageUrls : undefined,
+        label_image_urls: labelImageUrls.length ? labelImageUrls : undefined,
+      },
+    };
+    await mirrorClaimWithRetry(mirrorPayload);
+  }
+
   async function onSubmit(values: NewClaimValues) {
     setSubmitting(true);
     try {
-      const [productImageUrls, labelImageUrls] = await Promise.all([
-        uploadImages(productImages, 'product'),
-        uploadImages(labelImages, 'label'),
-      ]);
-
       const payload: CreateClaimPayload = {
         channel: values.channel,
         order_no: values.order_no,
@@ -108,8 +149,6 @@ export function NewClaimWizard() {
           product_name: values.product_name,
           serial_no: values.serial_no || undefined,
           issue_detail: values.issue_detail,
-          product_image_urls: productImageUrls.length ? productImageUrls : undefined,
-          label_image_urls: labelImageUrls.length ? labelImageUrls : undefined,
         },
         inbound: values.tracking_no_in
           ? { carrier: values.carrier_in || undefined, tracking_no: values.tracking_no_in, ship_date: values.ship_date_in || undefined }
@@ -119,6 +158,7 @@ export function NewClaimWizard() {
       const created = await gvApi.createClaim(payload);
       setResult({ claim_no: created.claim_no, public_token: created.public_token });
       toast.success(`สร้างเคส ${created.claim_no} สำเร็จ`);
+      void finishInBackground(created, payload);
     } catch (err) {
       const message = err instanceof GvApiError ? err.message : 'ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
       toast.error(message);

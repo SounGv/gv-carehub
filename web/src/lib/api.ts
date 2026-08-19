@@ -19,6 +19,7 @@ import type {
   LegacyRowsResponse,
   LegacyServiceLogRow,
   MetaResponse,
+  MirrorClaimPayload,
   ReportResponse,
   SearchResponse,
   SupplierRmaAnalyticsResponse,
@@ -199,7 +200,28 @@ export const gvApi = {
 
   claimDetail: (claimNo: string) => apiGet<ClaimDetailResponse>('claim_detail', { claim_no: claimNo }),
 
-  createClaim: (payload: CreateClaimPayload) => apiPost<CreateClaimResult>('create_claim', payload as unknown as Record<string, unknown>),
+  createClaim: async (payload: CreateClaimPayload): Promise<CreateClaimResult> => {
+    // Same reasoning as gvApi.dashboard: Supabase's create_claim RPC replies in
+    // well under a second vs. Apps Script's ~1.1-3s fixed per-call overhead —
+    // that overhead (paid twice over when photos are attached, since each
+    // upload is its own Apps Script round-trip) is what made submitting feel
+    // stuck on a spinner. Falls back to the original Apps Script action if
+    // Supabase isn't configured or the RPC call itself errors, so a
+    // submission never hard-fails just because Supabase is unreachable — the
+    // claim still gets created, just at the old speed.
+    if (supabase) {
+      const { data, error } = await supabase.rpc('create_claim', { p: payload });
+      if (!error && data) return data as CreateClaimResult;
+    }
+    return apiPost<CreateClaimResult>('create_claim', payload as unknown as Record<string, unknown>);
+  },
+
+  // Brings a claim created via the fast Supabase path into Google Sheets —
+  // see MirrorClaimPayload's doc comment. No-op/harmless to call more than
+  // once for the same claim (mirrorClaim_ on the Apps Script side is
+  // idempotent per-sheet).
+  mirrorClaim: (payload: MirrorClaimPayload) =>
+    apiPost<{ ok: true; claim_no: string }>('mirror_claim', payload as unknown as Record<string, unknown>),
 
   receive: (claimNo: string, actor: string, note?: string, warrantyRemaining?: string) =>
     apiPost<{ ok: true; claim_no: string; status: string; updated_at: string }>('receive', {
