@@ -3,6 +3,7 @@
 import { useController, useFormContext } from 'react-hook-form';
 import { Input, Label } from '@/components/ui/input';
 import { AddressAutocomplete } from '@/components/claims/address-autocomplete';
+import { AddressMapPicker, type MapAddressResult } from '@/components/claims/address-map-picker';
 import type { ThaiAddressMatch } from '@/lib/thai-address';
 import type { NewClaimValues } from '@/lib/validators';
 
@@ -27,8 +28,25 @@ export function StepAddress() {
     setValue('address.zipcode', match.zipcode, { shouldValidate: true });
   }
 
+  function fillFromMap(result: MapAddressResult) {
+    // house_no/road: only fill in when the map actually knows them — OSM rarely has
+    // Thai house numbers, and the customer may have already typed one by hand.
+    if (result.house_no) setValue('address.house_no', result.house_no, { shouldValidate: true });
+    if (result.road) setValue('address.road', result.road, { shouldValidate: true });
+    // tambon/amphoe/province/zipcode: always sync to match the pin just placed, even
+    // when a field comes back blank — a re-pick at a different spot must not leave the
+    // previous pin's values sitting there mismatched with the new one.
+    setValue('address.tambon', result.tambon ?? '', { shouldValidate: true });
+    setValue('address.amphoe', result.amphoe ?? '', { shouldValidate: true });
+    setValue('address.province', result.province ?? '', { shouldValidate: true });
+    setValue('address.zipcode', result.zipcode ?? '', { shouldValidate: true });
+  }
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <AddressMapPicker onSelect={fillFromMap} />
+      </div>
       <div>
         <Label htmlFor="house_no">บ้านเลขที่</Label>
         <Input id="house_no" {...register('address.house_no')} />
