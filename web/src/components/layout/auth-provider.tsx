@@ -1,39 +1,41 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { DEFAULT_ACTOR_NAME, type AuthSession, getStoredSession, setStoredSession } from '@/lib/auth';
+import { createContext, useContext, useMemo } from 'react';
+import { SessionProvider, useSession, signOut as nextAuthSignOut } from 'next-auth/react';
 
 interface AuthContextValue {
-  session: AuthSession;
+  /** Kept as `{ name }` (not the full NextAuth session shape) so every existing
+   * `session.name` call site that logs an `actor` on write actions — receive,
+   * ship, service-detail, owner-select, status-actions, supplier-rma — needed
+   * zero changes when real login replaced the old localStorage name-picker. */
+  session: { name: string };
   isLoading: boolean;
-  rename: (name: string) => void;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AuthSession>({ name: DEFAULT_ACTOR_NAME });
-  const [isLoading, setIsLoading] = useState(true);
+function AuthContextBridge({ children }: { children: React.ReactNode }) {
+  const { data, status } = useSession();
 
-  useEffect(() => {
-    const stored = getStoredSession();
-    if (stored) {
-      setSession(stored);
-    } else {
-      setStoredSession({ name: DEFAULT_ACTOR_NAME });
-    }
-    setIsLoading(false);
-  }, []);
-
-  const rename = useCallback((name: string) => {
-    const next: AuthSession = { name: name.trim() || DEFAULT_ACTOR_NAME };
-    setStoredSession(next);
-    setSession(next);
-  }, []);
-
-  const value = useMemo(() => ({ session, isLoading, rename }), [session, isLoading, rename]);
+  const value = useMemo<AuthContextValue>(() => {
+    const displayName = data?.user?.name || data?.user?.email?.split('@')[0] || 'พนักงาน';
+    return {
+      session: { name: displayName },
+      isLoading: status === 'loading',
+      signOut: () => nextAuthSignOut({ callbackUrl: '/sign-in' }),
+    };
+  }, [data, status]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionProvider>
+      <AuthContextBridge>{children}</AuthContextBridge>
+    </SessionProvider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

@@ -5,8 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { LayoutDashboard, FileText, PackageSearch, Truck, Boxes, FileBarChart, Menu, X, Check, Link2 } from 'lucide-react';
-import { STAFF_NAMES } from '@/lib/auth';
+import { LayoutDashboard, FileText, PackageSearch, Truck, Boxes, FileBarChart, Menu, X, Check, Link2, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from './auth-provider';
 
@@ -135,7 +134,7 @@ function MainNav({ pathname, onNavigate }: { pathname: string | null; onNavigate
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { session, rename } = useAuth();
+  const { session, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   return (
@@ -175,22 +174,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Suspense>
         </nav>
 
-        <div className="mt-auto space-y-1.5 border-t border-white/10 pt-4">
-          <select
-            value={STAFF_NAMES.includes(session.name) ? session.name : ''}
-            onChange={(e) => rename(e.target.value)}
-            className="w-full rounded-md border border-white/20 bg-white/10 px-2 py-1.5 text-sm font-medium text-white outline-none"
+        <div className="mt-auto space-y-2 border-t border-white/10 pt-4">
+          <div className="text-sm font-medium text-white">เข้าสู่ระบบในชื่อ {session.name}</div>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 text-xs font-medium text-white/60 transition-colors hover:text-white"
           >
-            <option value="" disabled className="text-brand-charcoal">
-              เลือกชื่อพนักงาน
-            </option>
-            {STAFF_NAMES.map((name) => (
-              <option key={name} value={name} className="text-brand-charcoal">
-                {name}
-              </option>
-            ))}
-          </select>
-          <div className="text-xs text-white/40">ชื่อนี้จะบันทึกในประวัติการดำเนินการ</div>
+            <LogOut className="h-3.5 w-3.5" />
+            ออกจากระบบ
+          </button>
         </div>
       </aside>
 

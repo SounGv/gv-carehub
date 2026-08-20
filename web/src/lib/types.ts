@@ -413,6 +413,9 @@ export interface MirrorClaimPayload extends CreateClaimPayload {
   claim_no: string;
   claim_id: string;
   public_token_hash: string;
+  /** Plaintext token — used only transiently to build the tracking link in
+   * the claim-confirmation email; never persisted to a sheet column. */
+  public_token: string;
 }
 
 /* ---------------- Supplier RMA (ส่งเคลมผู้ผลิต) ----------------

@@ -1,45 +1,8 @@
-/**
- * TODO(auth): Placeholder identity — NOT a production authentication system.
+/** Staff names available for case-owner assignment (see owner-select.tsx and
+ * the "เจ้าของเคส" picker on the claim-detail page) — a business-domain list
+ * of who a case can be assigned to for follow-up, unrelated to login.
  *
- * The internal app (staff + admin) has no login gate: anyone with the link
- * gets straight in, and this module only persists a display name to
- * localStorage so "actor" fields sent to the API (see apps-script/Code.gs)
- * have something readable to log against. Anyone can edit localStorage and
- * claim any name — there is no verification.
- *
- * Before going to production, add a real identity provider (e.g. NextAuth.js
- * with Google Workspace SSO) and have the Apps Script API verify the
- * caller's identity server-side instead of trusting the client-supplied
- * `actor` string. Do not store any secret/API key here; this file must stay
- * safe to ship to the browser.
- */
-
-export interface AuthSession {
-  name: string;
-}
-
-/** Preset staff names — picking from this list (instead of free typing) keeps
- * the "actor" attribution on every action (receive/test/ship/status change)
- * spelled consistently, so "who did this" is actually reliable to look up. */
+ * Real staff identity/login now comes from Google Workspace SSO (see
+ * web/src/auth.ts + auth-provider.tsx) — this file no longer holds any
+ * session/identity state. */
 export const STAFF_NAMES = ['ME_lalana', 'Dusida', 'Tik', 'Natza', 'Jo', 'Deer', 'Au', 'Aun'];
-
-const STORAGE_KEY = 'gv_carehub_session_v1';
-export const DEFAULT_ACTOR_NAME = 'พนักงาน';
-
-export function getStoredSession(): AuthSession | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AuthSession;
-    if (!parsed || !parsed.name) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-export function setStoredSession(session: AuthSession): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-}

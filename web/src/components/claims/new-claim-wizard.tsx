@@ -125,6 +125,7 @@ export function NewClaimWizard() {
       claim_no: created.claim_no,
       claim_id: created.claim_id,
       public_token_hash: await sha256Hex(created.public_token),
+      public_token: created.public_token,
       item: {
         ...payload.item,
         product_image_urls: productImageUrls.length ? productImageUrls : undefined,
