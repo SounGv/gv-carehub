@@ -11,7 +11,7 @@ export default function SignInPage() {
           <div className="h-px w-10 bg-slate-200" />
           <div className="text-[20px] font-extrabold leading-tight text-brand-charcoal">CareHub</div>
         </div>
-        <p className="text-sm text-slate-500">สำหรับพนักงานเท่านั้น — เข้าสู่ระบบด้วยบัญชี Google ของบริษัท</p>
+        <p className="text-sm text-slate-500">สำหรับพนักงานเท่านั้น — กรอกอีเมลบริษัทเพื่อรับลิงก์เข้าสู่ระบบ</p>
         <SignInButton />
       </div>
     </div>
