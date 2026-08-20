@@ -23,6 +23,15 @@
  * a new sheet.
  */
 
+// Duplicated from web/src/components/claims/claim-process-steps.tsx (SHIPPING_NAME/
+// SHIPPING_ADDRESS/SHIPPING_PHONE) — no shared module between the Next.js frontend
+// and this Apps Script backend, so keep these two in sync by hand if the shop's
+// info ever changes.
+const SHOP_NAME = 'บริษัท แก็ดเจ็ต วิลล่า จำกัด';
+const SHOP_ADDRESS = '729, 28-37 ถนน รัชดาภิเษก แขวงบางโพงพาง เขตยานนาวา กรุงเทพมหานคร 10120';
+const SHOP_PHONE = '089 161 6494';
+const PROD_BASE_URL = 'https://gv-carehub.vercel.app';
+
 const SHEETS = {
   CONFIG: 'Config',
   CLAIMS: 'Claim_Master',
@@ -105,6 +114,12 @@ function doGet(e) {
   }
 }
 
+// Known accepted limitation: the Next.js frontend now gates who can reach
+// /admin and /staff behind Google Workspace SSO (middleware.ts), but this
+// endpoint still trusts whatever `actor` string arrives in the POST body —
+// it does not verify a signed identity server-side. A follow-up would pass
+// a signed ID token here and verify it before trusting `actor`; not solved
+// in this pass.
 function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
@@ -173,6 +188,27 @@ function setupSheets_() {
 
 /* ---------------- Claim creation ---------------- */
 
+/** Sent exactly once per claim, right when it's first created (fallback path:
+ * createClaim_; fast path: mirrorClaim_'s first-mirror branch) — never on
+ * retries. Wrapped in try/catch so a MailApp failure (e.g. daily quota hit)
+ * never blocks the claim itself from being created, same "never block the
+ * critical path" philosophy already used for photo uploads on the frontend. */
+function sendClaimConfirmationEmail_(claimNo, customerName, email, publicToken) {
+  if (!email) return;
+  try {
+    const link = PROD_BASE_URL + '/track/' + publicToken;
+    const subject = 'ยืนยันรับแจ้งเคลม ' + claimNo + ' - Gadget Villa CareHub';
+    const body = 'เรียนคุณ ' + (customerName || 'ลูกค้า') + ',\n\n' +
+      'เราได้รับแจ้งเคลมของท่านแล้ว หมายเลขเคส: ' + claimNo + '\n' +
+      'ติดตามสถานะได้ที่: ' + link + '\n\n' +
+      'ที่อยู่จัดส่งสินค้าคืน:\n' + SHOP_NAME + '\n' + SHOP_ADDRESS + '\nโทร ' + SHOP_PHONE + '\n\n' +
+      'ขอบคุณที่ใช้บริการ';
+    MailApp.sendEmail(email, subject, body);
+  } catch (err) {
+    logSync_('send_confirmation_email', claimNo, 'error', err.message);
+  }
+}
+
 function createClaim_(p) {
   validateClaim_(p);
   const lock = LockService.getScriptLock();
@@ -229,6 +265,7 @@ function createClaim_(p) {
     }
 
     addHistory_(claimNo, '', status, 'customer', 'สร้างเคส');
+    sendClaimConfirmationEmail_(claimNo, p.customer_name, p.email, publicToken);
     logSync_('create_claim', claimNo, 'ok', 'สร้างเคสใหม่ช่องทาง ' + (p.channel || ''));
     return { ok: true, claim_no: claimNo, claim_id: claimId, public_token: publicToken };
   } finally {
@@ -334,6 +371,7 @@ function mirrorClaim_(p) {
 
   if (!existingClaim) {
     addHistory_(p.claim_no, '', 'แจ้งเคลมแล้ว', 'customer', 'สร้างเคส (mirror จาก Supabase)');
+    sendClaimConfirmationEmail_(p.claim_no, p.customer_name, p.email, p.public_token);
   }
 
   bumpConfigLastClaimNumber_(p.claim_no);
