@@ -16,6 +16,7 @@ import { StatusWorkflowChart } from '@/components/dashboard/charts';
 import { formatCurrency, formatNumber, formatPercent, formatThaiDateTime } from '@/lib/formatters';
 import { exportCsv, exportExcel } from '@/lib/export';
 import { CLAIM_STATUSES, type ReportRow } from '@/lib/types';
+import { statusLabel } from '@/lib/constants';
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const defaultFrom = () => format(subDays(new Date(), 29), 'yyyy-MM-dd');
@@ -124,7 +125,7 @@ export function SkuReportTab() {
               <option value="">ทั้งหมด</option>
               {(meta.data?.statuses ?? []).map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {statusLabel(s)}
                 </option>
               ))}
             </Select>

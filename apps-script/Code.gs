@@ -31,6 +31,7 @@ const SHOP_NAME = 'บริษัท แก็ดเจ็ต วิลล่�
 const SHOP_ADDRESS = '729, 28-37 ถนน รัชดาภิเษก แขวงบางโพงพาง เขตยานนาวา กรุงเทพมหานคร 10120';
 const SHOP_PHONE = '089 161 6494';
 const PROD_BASE_URL = 'https://gv-carehub.vercel.app';
+const ADMIN_ALERT_EMAIL = 'soun.gv@gadgetvilla.co.th,support@gadgetvilla.co.th';
 
 const SHEETS = {
   CONFIG: 'Config',
@@ -1786,6 +1787,27 @@ function logSync_(action, claimNo, result, message) {
   spreadsheet_().getSheetByName(SHEETS.SYNC_LOG).appendRow([
     Utilities.getUuid(), action, claimNo || '', result || '', message || '', new Date()
   ]);
+  // Sync_Log is otherwise only ever checked by hand — an email is what turns a
+  // silently-failing background job (e.g. the reconciliation cron) into
+  // something someone actually notices the same day.
+  if (result === 'error') alertAdminOnError_(action, claimNo, message);
+}
+
+function alertAdminOnError_(action, claimNo, message) {
+  try {
+    MailApp.sendEmail(
+      ADMIN_ALERT_EMAIL,
+      'GV CareHub แจ้งเตือน: ระบบมีปัญหา (' + action + ')',
+      'พบข้อผิดพลาดในระบบ GV CareHub\n\n' +
+        'จุดที่เกิด: ' + action + '\n' +
+        (claimNo ? 'เคสที่เกี่ยวข้อง: ' + claimNo + '\n' : '') +
+        'รายละเอียด: ' + (message || '(ไม่มีรายละเอียดเพิ่มเติม)') + '\n' +
+        'เวลา: ' + new Date().toLocaleString('th-TH')
+    );
+  } catch (err) {
+    // Alerting itself failing (e.g. mail quota) must not throw back into
+    // logSync_ — there'd be nothing left to catch it.
+  }
 }
 
 /**

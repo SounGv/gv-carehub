@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { gvApi, GvApiError } from '@/lib/api';
 import { useAuth } from '@/components/layout/auth-provider';
 import { cn } from '@/lib/utils';
+import { statusLabel } from '@/lib/constants';
 
 const DIRECT_STATUSES = ['รับเข้าคลังแล้ว', 'กำลังดำเนินการ', 'รออะไหล่', 'ดำเนินการเสร็จ', 'รอจัดส่งคืน', 'ปิดเคส'];
 
@@ -42,7 +43,7 @@ export function StatusActions({
       } else {
         await gvApi.service(claimNo, status, session.name);
       }
-      toast.success(`เปลี่ยนสถานะเป็น "${status}" แล้ว`);
+      toast.success(`เปลี่ยนสถานะเป็น "${statusLabel(status)}" แล้ว`);
       onChanged();
     } catch (err) {
       toast.error(err instanceof GvApiError ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -68,7 +69,7 @@ export function StatusActions({
             title={blocked ? NO_TEST_RESULT_MESSAGE : undefined}
             className={cn(status === currentStatus && 'bg-brand-charcoal')}
           >
-            {status}
+            {statusLabel(status)}
           </Button>
         );
       })}

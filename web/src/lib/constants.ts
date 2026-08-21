@@ -24,6 +24,23 @@ export const STATUS_STYLES: Record<string, { bg: string; text: string; dot: stri
 export const DEFAULT_STATUS_STYLE = { bg: 'bg-slate-100', text: 'text-slate-700', dot: 'bg-slate-400' };
 
 /**
+ * Display-only relabeling — the stored/compared status value everywhere else
+ * (Sheets, Supabase, OPEN_STATUSES, dashboard aggregation) stays "รออะไหล่" so
+ * historical claims and every status===check keep working unchanged. Only
+ * what staff/customers actually read is renamed, since in practice this
+ * status covers any "on hold, waiting to reach the customer" case, not only
+ * out-of-stock parts (e.g. discontinued model, awaiting a decision on
+ * replace-vs-refund) — see StatusBadge/StatusActions.
+ */
+export const STATUS_LABELS: Record<string, string> = {
+  รออะไหล่: 'รอดำเนินการ',
+};
+
+export function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
+/**
  * Chart data-ink for single-series measures (line/area/ranked-bar charts).
  * Uses the same validated dark-lime as the donut chart's lead color (see
  * DONUT_COLORS below) instead of a generic blue, so every chart on the

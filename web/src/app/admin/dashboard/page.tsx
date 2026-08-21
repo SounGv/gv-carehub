@@ -19,7 +19,7 @@ import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { colorForCategory, DailyClaimsChart, RankedBarChart, StatusProportionStrip } from '@/components/dashboard/charts';
-import { CHART_CLAIMED_SKU, CHART_DAMAGE_SKU, CHART_ISSUE, CHART_OWNER_ASSIGNED, CHART_OWNER_UNASSIGNED } from '@/lib/constants';
+import { CHART_CLAIMED_SKU, CHART_DAMAGE_SKU, CHART_ISSUE, CHART_OWNER_ASSIGNED, CHART_OWNER_UNASSIGNED, statusLabel } from '@/lib/constants';
 import { FilterBar, FilterField, RefreshButton } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -134,7 +134,7 @@ export default function AdminDashboardPage() {
             <option value="">ทั้งหมด</option>
             {(meta.data?.statuses ?? []).map((s) => (
               <option key={s} value={s}>
-                {s}
+                {statusLabel(s)}
               </option>
             ))}
           </Select>

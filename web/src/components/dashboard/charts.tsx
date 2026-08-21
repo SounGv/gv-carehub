@@ -9,6 +9,7 @@ import {
   DONUT_COLORS,
   DONUT_OTHER_COLOR,
   STATUS_CHART_COLORS,
+  statusLabel,
 } from '@/lib/constants';
 import { formatNumber, formatPercent, formatThaiDate } from '@/lib/formatters';
 import { EmptyState } from '@/components/ui/states';
@@ -133,7 +134,11 @@ export function MonthlyTrendChart({ data }: { data: { month: string; count: numb
 }
 
 export function StatusWorkflowChart({ data }: { data: Record<string, number> }) {
-  const rows = CLAIM_STATUSES.map((status) => ({ status, count: data[status] || 0, color: STATUS_CHART_COLORS[status] ?? CHART_PRIMARY }));
+  const rows = CLAIM_STATUSES.map((status) => ({
+    status: statusLabel(status),
+    count: data[status] || 0,
+    color: STATUS_CHART_COLORS[status] ?? CHART_PRIMARY,
+  }));
   const hasData = rows.some((r) => r.count > 0);
   if (!hasData) return <EmptyState title="ไม่มีข้อมูลสถานะในช่วงที่เลือก" />;
   return (
@@ -161,7 +166,12 @@ export function StatusWorkflowChart({ data }: { data: Record<string, number> }) 
  * the main Dashboard; StatusWorkflowChart above still serves the SKU report tab.
  */
 export function StatusProportionStrip({ data }: { data: Record<string, number> }) {
-  const rows = CLAIM_STATUSES.map((status) => ({ status, count: data[status] || 0, color: STATUS_CHART_COLORS[status] ?? CHART_PRIMARY }));
+  const rows = CLAIM_STATUSES.map((status) => ({
+    status,
+    label: statusLabel(status),
+    count: data[status] || 0,
+    color: STATUS_CHART_COLORS[status] ?? CHART_PRIMARY,
+  }));
   return (
     <div className="space-y-3">
       <div className="flex gap-1.5">
@@ -170,7 +180,7 @@ export function StatusProportionStrip({ data }: { data: Record<string, number> }
             key={r.status}
             className="flex h-14 min-w-0 flex-1 flex-col items-center justify-center rounded-lg text-white"
             style={{ backgroundColor: r.color }}
-            title={`${r.status}: ${r.count}`}
+            title={`${r.label}: ${r.count}`}
           >
             <span className="text-lg font-bold tabular-nums">{formatNumber(r.count)}</span>
           </div>
@@ -180,7 +190,7 @@ export function StatusProportionStrip({ data }: { data: Record<string, number> }
         {rows.map((r) => (
           <div key={r.status} className="flex items-center gap-1.5 text-xs text-slate-600">
             <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ backgroundColor: r.color }} />
-            <span className="truncate">{r.status}</span>
+            <span className="truncate">{r.label}</span>
           </div>
         ))}
       </div>

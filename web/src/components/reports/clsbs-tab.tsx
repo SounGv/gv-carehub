@@ -17,6 +17,7 @@ import { ExportModeToggle, type ExportMode } from '@/components/reports/export-m
 import { formatCurrency, formatNumber, formatThaiDateTime } from '@/lib/formatters';
 import { exportCsv, exportExcel, exportSummaryExcel } from '@/lib/export';
 import type { LegacyClsbsRow } from '@/lib/types';
+import { statusLabel } from '@/lib/constants';
 
 const PAGE_SIZE = 50;
 
@@ -245,7 +246,7 @@ export function ClsbsTab() {
               <option value="">ทั้งหมด</option>
               {(meta.data?.statuses ?? []).map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {statusLabel(s)}
                 </option>
               ))}
             </Select>

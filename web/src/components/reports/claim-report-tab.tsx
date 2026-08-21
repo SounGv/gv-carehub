@@ -9,6 +9,7 @@ import { useAsync } from '@/hooks/use-async';
 import { useMeta } from '@/hooks/use-meta';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { StatusBadge } from '@/components/claims/status-badge';
+import { statusLabel } from '@/lib/constants';
 import { ExportModeToggle, type ExportMode } from '@/components/reports/export-mode-toggle';
 import { FilterBar, FilterField } from '@/components/ui/filter-bar';
 import { Input, Select } from '@/components/ui/input';
@@ -163,7 +164,7 @@ export function ClaimReportTab() {
       [
         {
           name: 'ตามสถานะ',
-          rows: Object.entries(report.data.summary.by_status).map(([status, count]) => ({ status, count })),
+          rows: Object.entries(report.data.summary.by_status).map(([status, count]) => ({ status: statusLabel(status), count })),
           columns: [
             { key: 'status', label: 'สถานะ' },
             { key: 'count', label: 'จำนวนเคส' },
@@ -254,7 +255,7 @@ export function ClaimReportTab() {
               <option value="">ทั้งหมด</option>
               {(meta.data?.statuses ?? []).map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {statusLabel(s)}
                 </option>
               ))}
             </Select>
