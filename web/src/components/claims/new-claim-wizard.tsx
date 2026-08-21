@@ -21,9 +21,8 @@ import { ClaimSuccess } from './claim-success';
 import type { CreateClaimPayload, CreateClaimResult, MirrorClaimPayload } from '@/lib/types';
 
 const STEP_FIELDS: Record<number, (keyof NewClaimValues | 'address')[]> = {
-  1: ['channel', 'order_no', 'customer_name', 'phone', 'email'],
+  1: ['channel', 'order_no', 'customer_name', 'phone', 'email', 'address'],
   2: ['sku', 'serial_no', 'issue_detail'],
-  3: ['address'],
 };
 
 /** Uploads every file concurrently instead of one-at-a-time — each upload is its
@@ -103,7 +102,7 @@ export function NewClaimWizard() {
   async function goNext() {
     const fields = STEP_FIELDS[step] ?? [];
     const valid = await form.trigger(fields as (keyof NewClaimValues)[]);
-    if (valid) setStep((s) => Math.min(3, s + 1));
+    if (valid) setStep((s) => Math.min(2, s + 1));
   }
 
   function goBack() {
@@ -183,8 +182,16 @@ export function NewClaimWizard() {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            {step === 1 && <StepCustomer channels={meta.data.channels} />}
+          <CardContent className="space-y-6 pt-6">
+            {step === 1 && (
+              <>
+                <StepCustomer channels={meta.data.channels} />
+                <div className="border-t border-border pt-6">
+                  <div className="mb-3 text-sm font-semibold text-brand-charcoal">ที่อยู่จัดส่งคืน</div>
+                  <StepAddress />
+                </div>
+              </>
+            )}
             {step === 2 && (
               <StepProduct
                 carriers={meta.data.carriers}
@@ -195,7 +202,6 @@ export function NewClaimWizard() {
                 onLabelImagesChange={setLabelImages}
               />
             )}
-            {step === 3 && <StepAddress />}
           </CardContent>
         </Card>
 
@@ -203,7 +209,7 @@ export function NewClaimWizard() {
           <Button type="button" variant="outline" onClick={goBack} disabled={step === 1 || submitting}>
             <ArrowLeft className="h-4 w-4" /> ย้อนกลับ
           </Button>
-          {step < 3 ? (
+          {step < 2 ? (
             <Button type="button" variant="brand" onClick={goNext}>
               ถัดไป <ArrowRight className="h-4 w-4" />
             </Button>

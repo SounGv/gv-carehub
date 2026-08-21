@@ -10,7 +10,7 @@ export default function NewClaimPage() {
         <ClaimProcessSteps />
         <div>
           <h1 className="text-2xl font-extrabold text-brand-charcoal">แจ้งเคลมสินค้า</h1>
-          <p className="mt-1 text-sm text-slate-500">กรอกข้อมูลให้ครบทั้ง 3 ขั้นตอน แล้วเราจะออกเลขเคสและลิงก์ติดตามสถานะให้ทันที</p>
+          <p className="mt-1 text-sm text-slate-500">กรอกข้อมูลให้ครบทั้ง 2 ขั้นตอน แล้วเราจะออกเลขเคสและลิงก์ติดตามสถานะให้ทันที</p>
         </div>
         <NewClaimWizard />
       </div>

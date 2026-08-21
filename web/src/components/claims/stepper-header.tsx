@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const STEPS = ['ข้อมูลลูกค้า', 'ข้อมูลสินค้าและปัญหา', 'ที่อยู่ส่งคืน'];
+const STEPS = ['ข้อมูลลูกค้าและที่อยู่ส่งคืน', 'ข้อมูลสินค้าและปัญหา'];
 
 export function StepperHeader({ current }: { current: number }) {
   return (
