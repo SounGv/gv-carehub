@@ -17,8 +17,10 @@ export const customerStepSchema = z.object({
 export type CustomerStepValues = z.infer<typeof customerStepSchema>;
 
 export const productStepSchema = z.object({
-  sku: z.string().optional().or(z.literal('')),
-  product_name: z.string().min(1, 'กรุณาระบุชื่อสินค้า'),
+  sku: z.string().min(1, 'กรุณาระบุ SKU'),
+  // No longer user-facing — auto-filled from the SKU catalog match when
+  // possible (see step-product.tsx), left blank otherwise.
+  product_name: z.string().optional().or(z.literal('')),
   serial_no: z.string().optional().or(z.literal('')), // Optional: not every product carries a serial number
   issue_detail: z.string().min(3, 'กรุณาระบุรายละเอียดอาการเสีย'),
   carrier_in: z.string().optional().or(z.literal('')),

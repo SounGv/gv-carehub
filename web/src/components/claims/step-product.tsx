@@ -44,8 +44,8 @@ export function StepProduct({
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="sku">SKU (ถ้าทราบ)</Label>
-          <Input id="sku" list="sku-options" {...register('sku')} placeholder="เช่น UG-001" />
+          <Label htmlFor="sku">SKU</Label>
+          <Input id="sku" list="sku-options" {...register('sku')} placeholder="เช่น WG9" />
           <datalist id="sku-options">
             {products.map((p) => (
               <option key={p.sku} value={p.sku}>
@@ -53,11 +53,7 @@ export function StepProduct({
               </option>
             ))}
           </datalist>
-        </div>
-        <div>
-          <Label htmlFor="product_name">ชื่อสินค้า</Label>
-          <Input id="product_name" {...register('product_name')} placeholder="ชื่อสินค้า" />
-          {errors.product_name && <p className="mt-1 text-xs text-error">{errors.product_name.message}</p>}
+          {errors.sku && <p className="mt-1 text-xs text-error">{errors.sku.message}</p>}
         </div>
         <div>
           <Label htmlFor="serial_no">Serial Number (ไม่บังคับ)</Label>

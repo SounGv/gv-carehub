@@ -22,7 +22,7 @@ import type { CreateClaimPayload, CreateClaimResult, MirrorClaimPayload } from '
 
 const STEP_FIELDS: Record<number, (keyof NewClaimValues | 'address')[]> = {
   1: ['channel', 'order_no', 'customer_name', 'phone', 'email'],
-  2: ['sku', 'product_name', 'serial_no', 'issue_detail'],
+  2: ['sku', 'serial_no', 'issue_detail'],
   3: ['address'],
 };
 
@@ -146,8 +146,8 @@ export function NewClaimWizard() {
         email: values.email || undefined,
         address_detail: values.address,
         item: {
-          sku: values.sku || undefined,
-          product_name: values.product_name,
+          sku: values.sku,
+          product_name: values.product_name || '',
           serial_no: values.serial_no || undefined,
           issue_detail: values.issue_detail,
         },
